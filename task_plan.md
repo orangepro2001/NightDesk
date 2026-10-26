@@ -40,6 +40,7 @@
 22. [done] Stage 7: add `nx-host -test-mode` with synthetic source and log injector, standalone `nx-probe`, negative safety guard and a published-artifact end-to-end probe.
 23. [done] Re-run Go Linux/Windows checks and the Android stage 5 test suite on AI; record the stage 7 handoff and acceptance facts.
 24. [done] Repair the Windows XAML startup crash, add a static regression test, republish the Windows candidate and pass WPF startup smoke verification.
+25. [done] Publish Android 1.1.0 (versionCode 7) to the AI feed, back up the old manifest, verify immutable APK/alias/manifest atomically, and re-run the 4 live-feed instrumented tests.
 
 ## Verification invariants
 
@@ -69,11 +70,12 @@
 - Android stage 5 JVM tests: `CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed`.
 - Android stage 5 instrumented tests: `HostStoreInstrumentedTest: OK (3 tests)` + `UpdateFlowInstrumentedTest: OK (1 test)` on `emulator-5580`.
 - Android stage 5 lint/build: `0 errors / 22 warnings`; emulator UI smoke screenshots captured.
-- Android stage 5 artifact: `artifacts\android\nightdesk-1.1.0-stage5.apk`, size `55058900`, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`.
-- Live Android feed remains versionCode 5 / 1.0.4; stage 5 has not been published.
+- Android published release: 1.1.0 / versionCode 7, local artifact `artifacts\android\nightdesk-1.1.0-stage5.apk`, size `55058900`, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`; AI immutable file `nightdesk-7.apk`.
+- Live Android feed is versionCode 7 / 1.1.0. The manifest, APK size/SHA-256, certificate, HTTPS download and emulator update flow were verified after publication.
 
 ## Remaining manual work
 
+- Android 1.1.0 publication/recovery details are in `docs/20261027-062721-android-1.1.0-publication-handoff.md`; publication does not replace real-device acceptance.
 - At the 2026-10-27 06:16 KST read-only check, no `NightDesk` or `nx-host` process was running. `C:\Users\pixel\Desktop\NightDesk.exe` is the pre-fix 1.4.0 candidate (old SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`) and must not be launched or deployed; use the repaired artifact instead.
 - After controlled deployment of 1.4.0, verify that `NightDesk.exe` and `nx-host.exe` are in the same directory, then check local status, Tailscale address, remote page, QR pairing, long-term token persistence, trusted-device revocation, display off/on/restore and hotkey behavior.
 - Verify real VDD add/remove with all other VDD managers closed; verify VDD auto-install on a machine where the driver is genuinely absent.

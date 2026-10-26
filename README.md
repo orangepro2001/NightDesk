@@ -4,7 +4,7 @@
 
 ## 当前交付状态（2026-10-27）
 
-- 当前代码基线：`090b5c1ecd7803ba717b97b378c37206ef36fdd1`（Windows XAML 启动修复；含阶段 7 安全端到端探针）。
+- Windows 二进制基线：`090b5c1ecd7803ba717b97b378c37206ef36fdd1`（Windows XAML 启动修复；含阶段 7 安全端到端探针）；Android 当前公开发布：**1.1.0（versionCode 7）**。
 - Windows **1.4.0 候选**已通过 **177 项 Release 测试**，Release 构建 0 警告 / 0 错误。发布目录 `C:\dev\NightDesk\artifacts\win-x64-1.4.0` 必须同时包含：
   - `NightDesk.exe`：`201832196` 字节，SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`，ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`。
   - `nx-host.exe`：`7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 输出 `nx-host 0.2.0`。
@@ -13,8 +13,8 @@
 - 1.4.0 仍将官方 Parsec VDD 安装器内嵌在单文件 EXE 中。启动时未检测到 VDD 设备接口，会在用户授权 UAC 后自动安装；已安装时绝不重装或替换驱动。
 - **当前本机状态**（2026-10-27 06:16 KST 只读检查）：没有 `NightDesk` 或 `nx-host` 进程。`C:\Users\pixel\Desktop\NightDesk.exe` 仍是**修复前**的 1.4.0 候选（`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`），同目录有 `nx-host.exe`。该旧 EXE 会复现截图中的 XAML 启动错误，**不要启动或部署**；应改用本轮修复后并已冒烟通过的 artifacts 候选。
 - `%LOCALAPPDATA%\NightDesk\recovery.json` 在 2026-10-27 06:16 KST 检查时**不存在**；这不能证明显示拓扑已经安全。最近一次只读诊断仍只确认 `\\.\DISPLAY6`（Parsec VDD），没有确认活动物理输出。在独立复核物理输出、DPI 和 VDD 之前，不要执行熄屏、点亮、恢复快照或 VDD 增删，也不要运行真实抓屏/SendInput 验收。
-- Android **1.0.4**（versionCode 5）已发布到 AI 更新源，支持最多 20 台主机的保存、切换和删除：`C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`。
-- Android **1.1.0 阶段 5 候选**（versionCode 7，未发布）：新增 go-nx 固定证书 tile 查看器、触摸/滚轮/键盘/Unicode 输入、连接状态机、超时与重试、后台释放输入。产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，大小 `55058900`，SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`。已完成 26 项 JVM 单测、4 项仪器测试和模拟器冒烟；**真实 Windows 抓屏、SendInput、真机 tailnet 尚未验收**。
+- Android **1.1.0**（versionCode 7）已发布到 AI 更新源：新增 go-nx 固定证书 tile 查看器、触摸/滚轮/键盘/Unicode 输入、连接状态机、超时与重试、后台释放输入。产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，大小 `55058900`，SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`。已完成 26 项 JVM 单测、4 项线上更新源仪器测试和模拟器冒烟；**真实 Windows 抓屏、SendInput、真机 tailnet 尚未验收**。
+- Android **1.0.4**（versionCode 5）保留为上一发布版本和回滚参考：`C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`。
 
 ## 运行（1.4.0 受控部署后）
 
@@ -80,8 +80,8 @@ Kotlin 原生应用（`dev.nightdesk.android`，minSdk 29 / target 35，Views + 
 - `nightdesk-1.0.1.apk` — versionCode 2
 - `nightdesk-1.0.2.apk` — versionCode 3，SHA-256 `d1f71eb1a58c6428739b69114bb17b924b5d965fb06fae42c1e228cab1eedcb3`
 - `nightdesk-1.0.3.apk` — versionCode 4，SHA-256 `ece0bb1e7bec11862d8ef7db89a9e82ee98bf56e9063a8b58c7cf33ef641a355`
-- `nightdesk-1.0.4.apk` — versionCode 5，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`
-- `nightdesk-1.1.0-stage5.apk` — versionCode 7，**阶段 5 候选，未发布到更新源**，大小 `55058900`，SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`
+- `nightdesk-1.0.4.apk` — versionCode 5，上一发布版本，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`
+- `nightdesk-1.1.0.apk` / `nightdesk-7.apk` — versionCode 7，**当前线上版本**，大小 `55058900`，SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`
 
 ## 恢复与故障排查
 
@@ -121,6 +121,7 @@ Android 构建与发布、更新源运维、签名密钥保管和已知限制见
 - 架构、API、配对、多主机与安卓交接：[C:\dev\NightDesk\docs\HANDOFF.md](C:/dev/NightDesk/docs/HANDOFF.md)
 - go-nx 集成可行性：[C:\dev\NightDesk\docs\20261027-003801-go-nx-remote-control-integration-plan.md](C:/dev/NightDesk/docs/20261027-003801-go-nx-remote-control-integration-plan.md)
 - 阶段 5 连接生命周期与恢复：[C:\dev\NightDesk\docs\20261027-033356-remote-control-stage-5-lifecycle-handoff.md](C:/dev/NightDesk/docs/20261027-033356-remote-control-stage-5-lifecycle-handoff.md)
+- Android 1.1.0 发布、验证与回滚：[C:\dev\NightDesk\docs\20261027-062721-android-1.1.0-publication-handoff.md](C:/dev/NightDesk/docs/20261027-062721-android-1.1.0-publication-handoff.md)
 - Windows XAML 启动崩溃修复与产物验收：[C:\dev\NightDesk\docs\20261027-061608-windows-xaml-startup-fix-handoff.md](C:/dev/NightDesk/docs/20261027-061608-windows-xaml-startup-fix-handoff.md)
 - 人工验收：[C:\dev\NightDesk\docs\ACCEPTANCE.md](C:/dev/NightDesk/docs/ACCEPTANCE.md)
 - 第三方说明：[C:\dev\NightDesk\docs\THIRD-PARTY-NOTICES.txt](C:/dev/NightDesk/docs/THIRD-PARTY-NOTICES.txt)

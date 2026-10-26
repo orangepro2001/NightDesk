@@ -34,32 +34,33 @@
 
 ### Android 客户端
 
-- 已发布版本：**1.0.4**（versionCode **5**）
-- 本地产物：`C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`
-- 大小：`6991035` 字节
-- SHA-256：`906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`
-- 签名证书 SHA-256：`41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`
-- 已实现多主机：最多保存 20 台主机，可按 Tailscale origin 去重、切换和删除；配置 schemaVersion 3，兼容旧单主机格式迁移；Android Keystore AES-GCM 加密，令牌不以明文落盘。
-
-- 阶段 5 候选：**1.1.0**（versionCode **7**，未发布）
-- 产物：`C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`
+- 已发布版本：**1.1.0**（versionCode **7**）
+- 本地产物：`C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`
+- AI 不可变文件：`nightdesk-7.apk`；别名：`nightdesk-1.1.0.apk`
 - 大小：`55058900` 字节
 - SHA-256：`01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`
-- Debug APK：`artifacts\android\nightdesk-1.1.0-stage5-debug.apk`，`56886382` 字节，SHA-256 `042c9d37dffa86c7507ee8ab358415d46eb921cd55700328e8ef393034fc08aa`。
-- AndroidTest APK：`artifacts\android\nightdesk-1.1.0-stage5-androidTest.apk`，`689645` 字节，SHA-256 `f9d11858d818aaa073f39fc404ea716af5043c2f6093bc0454b8ef52da1b4c36`。
-- 阶段 5 新增：
+- 签名证书 SHA-256：`41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`
+- 已发布到 AI 更新源；发布前清单备份为 `manifest.json.bak-20261027-062447`。
+- 已实现多主机：最多保存 20 台主机，可按 Tailscale origin 去重、切换和删除；配置 schemaVersion 3，兼容旧单主机格式迁移；Android Keystore AES-GCM 加密，令牌不以明文落盘。
+- 1.1.0 新增：
+  - go-nx 固定证书 tile 查看器；
+  - 触摸、滚轮、键盘和 Unicode 输入；
   - `NxConnectionModel` 显式连接状态机；
   - 20 秒前端截止时间和用户可见的超时错误；
   - 失败后的“重试 / 配对码 / 重新扫码”恢复动作；
   - 后台、Activity 销毁、断线时释放鼠标/滚轮/按键；
   - 旧 attempt 回调隔离，避免旧错误覆盖新连接；
   - 成功连接后才持久化屏幕尺寸。
+- 上一发布版本：1.0.4（versionCode 5），产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`；保留用于回滚参考。
+- Debug APK：`artifacts\android\nightdesk-1.1.0-stage5-debug.apk`，`56886382` 字节，SHA-256 `042c9d37dffa86c7507ee8ab358415d46eb921cd55700328e8ef393034fc08aa`。
+- AndroidTest APK：`artifacts\android\nightdesk-1.1.0-stage5-androidTest.apk`，`689645` 字节，SHA-256 `f9d11858d818aaa073f39fc404ea716af5043c2f6093bc0454b8ef52da1b4c36`。
 - Android 验证：
   - JVM 单测：`CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed`；
   - 仪器测试：`HostStoreInstrumentedTest: OK (3 tests)` + `UpdateFlowInstrumentedTest: OK (1 test)`；
+  - 发布后线上更新源复测：`OK (4 tests)`；
   - Lint/Release 构建：`0 errors / 22 warnings`；
   - 模拟器 UI 冒烟：`artifacts\android\stage5-home.png`、`artifacts\android\stage5-offline-timeout.png`。
-
+- 尚未验收：真实 Android 物理真机、真机 tailnet UDP/QUIC、真实 Windows GDI 抓屏、`SendInput`、DPI/UAC 安全桌面、长时稳定性和资源占用。
 ### AI 更新源
 
 - 主机：SSH alias `AI`
@@ -70,7 +71,7 @@
   - 下载页：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk`
   - 最新 APK：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk`
   - 更新清单：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update`
-- 线上仍是 versionCode 5 / 1.0.4；阶段 5 未发布。
+- 线上为 versionCode **7** / 1.1.0；`latest.apk`、版本下载、清单、大小、SHA-256 和签名均已复核。
 
 ## 现场安全状态（必须保持）
 
@@ -98,11 +99,11 @@ $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 - 构建：`0 个警告 / 0 个错误`。
 - Windows 1.4.0 两个 EXE 的大小、SHA-256 与 ProductVersion 已复核；发布脚本和 `nx-host.exe -version` 冒烟检查通过。
 - Android stage 5 JVM/仪器测试和 APK 哈希来自 AI 验证目录 `/home/tony/dev/nightdesk-android-stage5`。
-- 线上 manifest 仍是 versionCode 5 / 1.0.4，不能把阶段 5 的本地 APK 误报成已发布版本。
+- 线上 manifest 为 versionCode 7 / 1.1.0；本地 APK、AI 不可变 APK 与 HTTPS 下载内容 SHA-256 完全一致。发布成功不等于真实 GDI/SendInput/真机 tailnet 验收通过。
 
 ## 历史说明
 
 - 1.2.0 的现场进程来自此前的统一图标与远程控制归属修复；该进程保持运行。
 - 1.3.0 是 VDD 随包安装的中间构建，1.3.1 是当时生产构建，当前 Windows 交付候选为 1.4.0。
-- 阶段 4 完成了固定证书查看器和基础输入；阶段 5 完成了连接失败可见、可重试和生命周期收口。
+- 阶段 4 完成了固定证书查看器和基础输入；阶段 5 完成了连接失败可见、可重试和生命周期收口；2026-10-27 已将 1.1.0 发布到 AI 更新源。
 - 旧版记录中的 PID 22708 / 115 项测试 / 1.2.0 已过期，以本文和 `docs/HANDOFF.md` 为准。

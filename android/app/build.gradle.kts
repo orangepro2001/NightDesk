@@ -7,7 +7,7 @@ android {
         applicationId = "dev.nightdesk.android"
         minSdk = 29
         targetSdk = 35
-        versionCode = providers.gradleProperty("nightdeskVersionCode").orElse("6").get().toInt()
+        versionCode = providers.gradleProperty("nightdeskVersionCode").orElse("7").get().toInt()
         versionName = providers.gradleProperty("nightdeskVersionName").orElse("1.1.0").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

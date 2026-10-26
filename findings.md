@@ -8,7 +8,7 @@
 - Remote: `git@github.com:orangepro2001/NightDesk.git`.
 - Branch: `main`.
 - Initial import: `b1855e4 chore: initial NightDesk source import`.
-- Current code baseline: `090b5c1ecd7803ba717b97b378c37206ef36fdd1 feat(nx): add safe end-to-end remote-control probe`.
+- Current code baseline: `1d5ce872e8b7fdc0377427f5b8139ce8904e10d8 docs: record Windows startup fix and artifact verification`; Android 1.1.0 publication documentation is added after this baseline.
 - This is a Git repository; the earlier note saying otherwise was stale.
 - `artifacts/` is intentionally ignored and is not committed; binaries are local delivery evidence, not source.
 
@@ -80,10 +80,11 @@
 - Update feed: `nightdesk-update-feed.service`, loopback `127.0.0.1:17768`, enabled at boot.
 - Tailnet paths: `/nightdesk` download page, `/nightdesk/latest.apk`, `/api/v1/android-update` manifest, `/api/v1/android-apk` versioned download.
 - Atomic publish order: APK copy -> version alias -> manifest last. The service verifies size and SHA-256 and returns 503 rather than exposing a half-published release.
-- Live current release: versionCode **5**, versionName **1.0.4**, size **6991035**, SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`.
-- Stage 5 candidate: versionCode **7**, versionName **1.1.0**, size **55058900**, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`; not published.
+- Live current release: versionCode **7**, versionName **1.1.0**, size **55058900**, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`; immutable file `nightdesk-7.apk`, alias `nightdesk-1.1.0.apk`.
+- The previous release, 1.0.4 / versionCode 5, remains available for rollback reference. Android clients do not accept downgrades. The pre-publication manifest backup is `manifest.json.bak-20261027-062447`.
 - Signing cert SHA-256: `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`.
 - Signing material is outside the source tree with 0600 permissions; passwords/tokens are not written to docs, logs or screenshots.
+- Client updates are discovered on app start, by a WorkManager periodic check (about every 6 hours), or by manual check. This is not an FCM push; installation still requires the Android system confirmation UI.
 - Funnel is not enabled. Tailnet ACL is the access boundary.
 
 ## Other current facts
@@ -92,6 +93,8 @@
 - `NightDesk.exe`: size `201832196`, SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`, ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`.
 - `nx-host.exe`: size `7938048`, SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`, version `nx-host 0.2.0`.
 - Safe end-to-end probe: synthetic 1920x1080 source, 4 frames, 538 tile updates, 7/7 input receipts, differing frame digests, host exit 0; no GDI capture and no SendInput.
+- Android 1.1.0 publication verification: package dev.nightdesk.android, versionCode 7, minSdk 29, v2 signature, ZIP integrity, local/AI/HTTPS SHA-256 equality, HTTP 200 for latest and versioned APK, and emulator live-feed tests OK (4 tests).
+- Publication documentation: docs/20261027-062721-android-1.1.0-publication-handoff.md.
 - Real GDI capture, SendInput/DPI/UAC behavior and physical Android tailnet acceptance remain unverified.
 - Release tests: **177 passed**, no display mutation.
 - Release build: **0 warnings / 0 errors**.

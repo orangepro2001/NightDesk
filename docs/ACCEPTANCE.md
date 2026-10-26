@@ -2,31 +2,32 @@
 
 更新日期：2026-10-27（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：go-nx 远程控制阶段 7（安全端到端探针）、阶段 6 发布包完整性、阶段 5 Android 连接生命周期、`nx-host.exe` 0.2.0 sidecar、Android 多主机管理、Parsec VDD 随包安装，以及现场显示安全门禁。
+本轮范围：Android 1.1.0 发布与更新源验证、go-nx 远程控制阶段 7（安全端到端探针）、阶段 6 发布包完整性、阶段 5 Android 连接生命周期、`nx-host.exe` 0.2.0 sidecar、Android 多主机管理、Parsec VDD 随包安装，以及现场显示安全门禁。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
-| 代码基线 | `090b5c1ecd7803ba717b97b378c37206ef36fdd1` |
+| 代码基线 | `1d5ce872e8b7fdc0377427f5b8139ce8904e10d8` |
 | Windows 候选目录 | `C:\dev\NightDesk\artifacts\win-x64-1.4.0`，必须同时包含 `NightDesk.exe` 与 `nx-host.exe` |
 | Windows `NightDesk.exe` | `201832196` 字节，SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`，ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1` |
 | Windows `nx-host.exe` | `7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 为 `nx-host 0.2.0` |
 | 当前进程 | 2026-10-27 06:16 KST 检查：无 `NightDesk` / `nx-host` 进程 |
-| Android 已发布版本 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，versionCode **5** / versionName **1.0.4** |
-| Android 已发布大小 / SHA-256 | `6991035` 字节 / `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436` |
-| Android 阶段 5 候选 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，versionCode **7** / versionName **1.1.0**，**未发布** |
-| 阶段 5 大小 / SHA-256 | `55058900` 字节 / `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480` |
-| 阶段 5 Debug APK | `artifacts\android\nightdesk-1.1.0-stage5-debug.apk`，`56886382` 字节，SHA-256 `042c9d37dffa86c7507ee8ab358415d46eb921cd55700328e8ef393034fc08aa` |
-| 阶段 5 AndroidTest APK | `artifacts\android\nightdesk-1.1.0-stage5-androidTest.apk`，`689645` 字节，SHA-256 `f9d11858d818aaa073f39fc404ea716af5043c2f6093bc0454b8ef52da1b4c36` |
+| Android 已发布版本 | **1.1.0**，versionCode **7**；本地产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，AI 不可变文件 `nightdesk-7.apk` |
+| Android 已发布大小 / SHA-256 | `55058900` 字节 / `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480` |
+| Android 上一发布版本 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，versionCode **5** / versionName **1.0.4**，保留用于回滚参考 |
+| Android 1.0.4 大小 / SHA-256 | `6991035` 字节 / `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436` |
+| Android 1.1.0 Debug APK | `artifacts\android\nightdesk-1.1.0-stage5-debug.apk`，`56886382` 字节，SHA-256 `042c9d37dffa86c7507ee8ab358415d46eb921cd55700328e8ef393034fc08aa` |
+| Android 1.1.0 AndroidTest APK | `artifacts\android\nightdesk-1.1.0-stage5-androidTest.apk`，`689645` 字节，SHA-256 `f9d11858d818aaa073f39fc404ea716af5043c2f6093bc0454b8ef52da1b4c36` |
 | Android 签名证书 SHA-256 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
-| AI 更新服务 | `nightdesk-update-feed.service` active / enabled；`/healthz` 返回 `ok`；线上仍是 versionCode 5 / 1.0.4 |
+| AI 更新服务 | `nightdesk-update-feed.service` active / enabled；`/healthz` 返回 `ok`；线上为 versionCode **7** / 1.1.0 |
 
 ### 在线地址（仅 tailnet 内可访问）
 
 - 下载页：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk`
 - 最新 APK：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk`
 - 更新清单：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update`
+- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=7`
 - 桌面控制页：`https://minipc-xoh4t.tail9f7f1f.ts.net/`
 
 未启用 Tailscale Funnel。访问边界由 tailnet ACL 控制。
@@ -43,11 +44,13 @@
 | Go Windows 交叉验证 | **通过** | `GOOS=windows go vet ./...`、`go build ./...` 通过；8 个交叉编译测试二进制在 Windows 本机全部 PASS |
 | go-nx 安全端到端探针 | **通过** | 发布版 `nx-host.exe` + `nx-probe.exe`：1920×1080、4 帧、538 tile 更新、7/7 输入回执、首末帧摘要不同、host 退出码 0；使用合成源和日志输入，不抓屏、不调用 SendInput |
 | Android JVM 单测 | **26 项通过** | `CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed` |
-| Android 仪器测试 | **4 项通过** | `HostStoreInstrumentedTest: OK (3 tests)`、`UpdateFlowInstrumentedTest: OK (1 test)`；设备 `emulator-5580` |
-| Android 阶段 5 构建 | **通过** | Release / Debug / AndroidTest APK，versionCode 7 / versionName 1.1.0；Lint `0 errors / 22 warnings` |
+| Android 仪器测试 | **4 项通过** | `HostStoreInstrumentedTest: OK (3 tests)`、`UpdateFlowInstrumentedTest: OK (1 test)`；设备 `emulator-5580`；发布后线上更新源复测仍为 `OK (4 tests)` |
+| Android 1.1.0 构建 | **通过** | Release / Debug / AndroidTest APK，versionCode 7 / versionName 1.1.0；Lint `0 errors / 22 warnings` |
 | Android 模拟器 UI 冒烟 | **通过** | 主页与不可达地址超时界面截图：`artifacts\android\stage5-home.png`、`artifacts\android\stage5-offline-timeout.png` |
-| 线上更新清单 | **通过（仍为 1.0.4）** | HTTP 200，versionCode `5` / 1.0.4 / `6991035` 字节，SHA-256 与本地 1.0.4 APK 一致；阶段 5 未发布 |
-| 线上 APK HEAD | **通过** | HTTP 200，`Content-Length: 6991035`，`application/vnd.android.package-archive` |
+| 线上更新清单 | **通过（1.1.0）** | HTTP 200，versionCode `7` / 1.1.0 / `55058900` 字节；大小、SHA-256 和证书指纹与构建产物一致 |
+| 线上 APK HEAD | **通过** | HTTP 200，`Content-Length: 55058900`，`application/vnd.android.package-archive`；版本下载接口 `versionCode=7` 同样返回 200 |
+| Android 发布一致性 | **通过** | 本地 APK、AI 不可变 APK、HTTPS 下载内容 SHA-256 完全一致；APK v2 签名、ZIP 完整性、包名、versionCode、versionName、minSdk 均通过 |
+| Android 原子发布 | **通过** | 旧清单已备份为 `manifest.json.bak-20261027-062447`；APK 先落盘，别名次之，manifest 最后原子替换 |
 
 Windows 测试入口是不可用 `dotnet test` 替代的断言程序：
 
@@ -229,7 +232,7 @@ adb -s emulator-5580 shell am instrument -w \
 - [x] 真实 Tailscale HTTPS 下载页、manifest、latest.apk 均返回 200，版本与哈希一致。
 - [x] 未启用 Funnel，其它 Serve 路由未被删除。
 - [ ] 重启 AI 后确认服务自动恢复、URL 仍可用。
-- [ ] 发布下一版本后确认 manifest 先保持旧值，APK 可读后再原子切换，客户端不会下载半发布文件。
+- [x] 1.1.0 发布时确认 APK 先落盘、版本别名次之、manifest 最后原子切换；服务仅在大小与 SHA-256 匹配时提供下载。
 
 ### G. NX 远程控制端到端（需独立测试机与真机）
 
@@ -256,8 +259,8 @@ adb -s emulator-5580 shell am instrument -w \
 
 ## 9. 交付边界
 
-- Android 1.0.4 已实现多主机、扫码绑定、永久设备令牌、独立更新源，并完成远端构建与仪器测试；物理真机联调仍需人工验收。
-- Android 1.1.0 阶段 5 候选已构建并通过 26 项 JVM 单测、4 项仪器测试和模拟器冒烟，但**未发布**；真实 Windows 抓屏、SendInput 和真机 tailnet **未验收**。
+- Android 1.1.0（versionCode 7）已实现多主机、扫码绑定、永久设备令牌、独立更新源和 go-nx 低带宽远控，并完成远端构建、26 项 JVM 单测、4 项仪器测试及线上更新源下载验证；物理真机联调仍需人工验收。
+- Android 1.1.0 已发布到 AI 更新源，下载/哈希/签名和模拟器更新流程已通过；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机和 tailnet UDP/QUIC **未验收**。
 - Windows 1.4.0 修复候选已构建、测试并完成启动冒烟。`Desktop\NightDesk.exe` 仍是修复前旧候选，尚未替换；部署时必须把修复后的 `NightDesk.exe` 与 `nx-host.exe` 一起复制到同一目录。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
 - go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不是通用远程桌面，不等同于 Sunshine/Parsec 视频串流。

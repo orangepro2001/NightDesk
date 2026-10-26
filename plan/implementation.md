@@ -1,8 +1,8 @@
 # NightDesk implementation plan
 
 更新时间：2026-10-27（Asia/Seoul）
-当前代码基线：`090b5c1ecd7803ba717b97b378c37206ef36fdd1`
-最新交接：`docs/20261027-061608-windows-xaml-startup-fix-handoff.md`
+当前代码基线：`1d5ce872e8b7fdc0377427f5b8139ce8904e10d8`
+最新交接：`docs/20261027-062721-android-1.1.0-publication-handoff.md`
 
 ## Scope / assumptions
 
@@ -33,6 +33,7 @@
 14. [done] Re-run the Android stage 5 build and tests on AI; confirm the local candidate hashes match the AI outputs.
 15. [done] Update current handoff, acceptance, progress and planning documents with the 1.4.0 candidate and the production safety gate.
 16. [done] Stage 7 safe end-to-end probe: `nx-host -test-mode` with a synthetic pattern source and log-only injector, standalone `nx-probe`, negative misuse guard, moved-input receipts and published-artifact acceptance.
+17. [done] Publish Android 1.1.0 / versionCode 7 with backup, immutable APK, version alias and final atomic manifest replacement; verify HTTPS downloads and the emulator update flow.
 
 ## Verification
 
@@ -41,18 +42,19 @@
 - Windows publish: `tools\publish-windows.ps1` publishes into fresh staging, requires both `NightDesk.exe` and `nx-host.exe`, and checks `nx-host.exe -version`.
 - go-nx Linux/Windows: `gofmt` on touched files, `go vet`, `go test` and Windows cross-build pass; 8 cross-compiled test binaries pass on Windows.
 - go-nx safe probe: published `nx-host.exe` + `nx-probe.exe` produced 1920x1080, 4 frames, 538 tile updates, 7/7 input receipts, differing frame digests and host exit code 0 without capture or SendInput.
-- Android stage 5: 26 JVM tests, 4 instrumented tests, lint/build and emulator UI smoke.
+- Android 1.1.0: 26 JVM tests, 4 instrumented tests, lint/build, emulator UI smoke, and a post-publication live-feed run of `OK (4 tests)`.
 - Pure logic + authenticated HTTP integration tests; malformed or unauthorized requests never reach display actions.
 - Embedded installer presence, extraction, hash/signature validation and tamper rejection tested.
-- Real display switching, absent-driver VDD installation, real GDI capture, real SendInput, physical Android and second-tailnet-node acceptance remain manual.
+- Publication checks prove download integrity and update-flow behavior only. Real display switching, absent-driver VDD installation, real GDI capture, real SendInput, physical Android and second-tailnet-node acceptance remain manual.
 
 ## Current artifact facts
 
 - Windows candidate: `artifacts\win-x64-1.4.0`.
   - `NightDesk.exe`: `201832196` bytes, SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`, ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`.
   - `nx-host.exe`: `7938048` bytes, SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`, version `nx-host 0.2.0`.
-- Android stage 5 candidate: `artifacts\android\nightdesk-1.1.0-stage5.apk`, `55058900` bytes, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`; not published.
-- Live Android feed remains versionCode 5 / 1.0.4.
+- Android published release: 1.1.0 / versionCode 7, local artifact `artifacts\android\nightdesk-1.1.0-stage5.apk`, `55058900` bytes, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`; AI file `nightdesk-7.apk`.
+- Live Android feed is versionCode 7 / 1.1.0; old manifest backup is `manifest.json.bak-20261027-062447`.
+- Android 1.1.0 publication does not validate real GDI capture, SendInput, DPI/UAC, physical-device tailnet UDP/QUIC or long-run resource behavior.
 
 ## Tracked issues / safety gate
 
