@@ -227,7 +227,7 @@ try {
      Check(health.IsSuccessStatusCode, "health endpoint answers without a token");
      using var healthDoc = JsonDocument.Parse(await health.Content.ReadAsStringAsync());
      Check(healthDoc.RootElement.GetProperty("app").GetString() == "nightdesk", "health endpoint identifies the app");
-     Check(healthDoc.RootElement.GetProperty("version").GetString()!.StartsWith("1.3.1"), "health endpoint reports build version");
+     Check(healthDoc.RootElement.GetProperty("version").GetString() == typeof(RemoteServer).Assembly.GetName().Version?.ToString(3), "health endpoint reports build version");
      Check((await portHttp.GetAsync("/api/v1/status")).StatusCode == HttpStatusCode.Unauthorized, "health endpoint does not bypass auth elsewhere");
  }
  Check(!await RemoteServer.IsNightDeskListeningAsync(busyPort), "probe reports the port free after dispose");
