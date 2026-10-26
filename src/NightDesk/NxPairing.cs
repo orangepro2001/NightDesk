@@ -15,6 +15,8 @@ public sealed partial record NxPairingPayload(
 {
     public const int Version = 1;
     public const string Kind = "nightdesk-nx";
+    public const int MinDimension = 64;
+    public const int MaxDimension = 16384;
 
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -23,8 +25,10 @@ public sealed partial record NxPairingPayload(
 
     public void Validate()
     {
-        if (!IPEndPoint.TryParse(Addr, out _))
-            throw new ArgumentException("远控地址必须为 IP:端口。", nameof(Addr));
+        if (!IPEndPoint.TryParse(Addr, out var endpoint) ||
+            endpoint.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork ||
+            !TryParseTailscaleIPv4(endpoint.Address.ToString(), out _))
+            throw new ArgumentException("远控地址必须为 Tailscale 100.64.0.0/10 IPv4:端口。", nameof(Addr));
         if (Fingerprint.Length != 64 || !Fingerprint.All(Uri.IsHexDigit))
             throw new ArgumentException("主机证书指纹必须为 64 位十六进制。", nameof(Fingerprint));
         if (!CodePattern().IsMatch(Code))
@@ -33,7 +37,7 @@ public sealed partial record NxPairingPayload(
         if (Expires <= now) throw new ArgumentException("配对二维码已过期。", nameof(Expires));
         if (Name.Length > 64 || Name.Any(char.IsControl))
             throw new ArgumentException("主机名称无效。", nameof(Name));
-        if (Width is < 1 or > 65535 || Height is < 1 or > 65535)
+        if (Width is < MinDimension or > MaxDimension || Height is < MinDimension or > MaxDimension)
             throw new ArgumentException("主机分辨率无效。", nameof(Width));
     }
 

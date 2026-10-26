@@ -332,6 +332,9 @@ Check(!NxPairingPayload.TryParseTailscaleIPv4("fd7a:115c:a1e0::1", out _), "reje
 using (var tailscaleStatus = JsonDocument.Parse("""{"BackendState":"Running","Self":{"TailscaleIPs":["fd7a:115c:a1e0::1","100.88.9.7"]}}"""))
     Check(TailscaleService.ExtractIPv4(tailscaleStatus.RootElement) == "100.88.9.7", "extract Tailscale IPv4 from status");
 Reject(() => new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeSeconds(), "PC", 1920, 1080).Validate(), "NX QR rejects expired pairing");
+Reject(() => new NxPairingPayload("192.168.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), "PC", 1920, 1080).Validate(), "NX QR rejects non-Tailscale address");
+Reject(() => new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), "PC", 63, 1080).Validate(), "NX QR rejects too-small frame");
+Reject(() => new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), "PC", 1920, 16385).Validate(), "NX QR rejects too-large frame");
 
 string locatorDir = Path.Combine(Path.GetTempPath(), "nightdesk-locator-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(locatorDir);

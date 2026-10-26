@@ -9,7 +9,7 @@ keydir="$HOME/.local/share/nightdesk-signing"
 [[ -f "$keydir/release.p12" && -f "$keydir/password" ]] || { echo "signing key missing" >&2; exit 1; }
 export NIGHTDESK_KEYSTORE="$keydir/release.p12"
 export NIGHTDESK_STORE_PASSWORD="$(cat "$keydir/password")"
-cd /home/tony/dev/nightdesk-android
+cd "${NIGHTDESK_ANDROID_DIR:-/home/tony/dev/nightdesk-android}"
 printf 'ANDROIDTEST_START %s\n' "$(date -Is)"
 gradle --no-daemon assembleReleaseAndroidTest "$@"
 printf 'ANDROIDTEST_OK\n'

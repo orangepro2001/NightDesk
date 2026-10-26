@@ -26,6 +26,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import org.json.JSONObject
 import java.util.concurrent.Executors
 
 class MainActivity : ComponentActivity() {
@@ -45,9 +46,16 @@ class MainActivity : ComponentActivity() {
     private lateinit var scanButton: Button
     private lateinit var hostPicker: Spinner
     private lateinit var deleteHost: Button
+    private lateinit var nxPicker: Spinner
+    private lateinit var nxOpenButton: Button
+    private lateinit var nxDeleteButton: Button
+    private lateinit var nxHint: TextView
+    private lateinit var nxStore: NxProfileStore
     private var hosts: Hosts? = null
+    private var nxHosts = NxHosts(emptyList())
     private var pickerSignature = ""
     private var pickerGuard = false
+    private var nxPickerSignature = ""
     private var profile: Profile? = null
     private var status: Status? = null
     private var working = false
@@ -58,16 +66,22 @@ class MainActivity : ComponentActivity() {
         if (granted) launchScanner() else toast("需要相机权限才能扫描桌面二维码")
     }
     private val scanner = registerForActivityResult(ScanContract()) { result ->
-        if (result.contents != null) pairWithQr(result.contents)
+        if (result.contents != null) handleQr(result.contents)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         profileStore = ProfileStore(this)
+        nxStore = NxProfileStore(this)
         buildUi()
         hosts = try { profileStore.loadHosts() } catch (_: Exception) { profileStore.clear(); null }
+        nxHosts = try { nxStore.load() } catch (_: Exception) {
+            nxStore.clear()
+            NxHosts(emptyList())
+        }
         profile = hosts?.active?.profile
         renderHostPicker()
+        renderNxHosts()
         profile?.let {
             host.setText(it.controlOrigin)
             tokenBox.setText(it.controlToken)
@@ -100,9 +114,9 @@ class MainActivity : ComponentActivity() {
         body.addView(text("Windows 显示与电源控制", 14, 0xff66736f.toInt()))
 
         body.addView(section("连接设备"))
-        scanButton = button("扫描桌面二维码绑定") { requestScan() }
+        scanButton = button("扫描桌面二维码（绑定 / 屏幕远控）") { requestScan() }
         body.addView(scanButton, params(10))
-        body.addView(text("二维码 5 分钟内有效且只能使用一次；绑定令牌只在桌面端撤销时失效。", 12, 0xff66736f.toInt()), params(4))
+        body.addView(text("二维码 5 分钟内有效且只能使用一次；同一个扫码入口会识别设备绑定或低带宽屏幕远控。", 12, 0xff66736f.toInt()), params(4))
 
         body.addView(text("已保存的主机", 14, 0xff17302c.toInt(), true), params(18))
         hostPicker = Spinner(this).apply {
@@ -129,6 +143,21 @@ class MainActivity : ComponentActivity() {
             }
         }
         body.addView(deleteHost, params(4))
+
+        body.addView(section("屏幕远控（低带宽）"))
+        body.addView(button("扫描屏幕远控二维码") { requestScan() }, params(8))
+        nxHint = text("尚未保存屏幕远控主机", 12, 0xff66736f.toInt())
+        body.addView(nxHint, params(6))
+        nxPicker = Spinner(this)
+        body.addView(nxPicker, params(6))
+        val nxActions = row()
+        nxOpenButton = button("打开选中主机") { openNxHost() }
+        nxDeleteButton = button("删除选中主机") { deleteNxHost() }
+        nxActions.addView(nxOpenButton, weight())
+        nxActions.addView(space(8))
+        nxActions.addView(nxDeleteButton, weight())
+        body.addView(nxActions, params(4))
+        body.addView(text("首次扫码会校验证书指纹并立即连接；6 位配对码只留在本次连接内存中，不写入长期存储。该模式适合静态桌面和低带宽网络，不适合视频或游戏画面。", 12, 0xff66736f.toInt()), params(4))
 
         body.addView(text("兼容方式：手动输入地址和访问令牌", 14, 0xff17302c.toInt(), true), params(18))
         host = edit("Tailscale HTTPS 地址").apply { setText("https://") }
@@ -224,10 +253,32 @@ class MainActivity : ComponentActivity() {
     private fun launchScanner() {
         scanner.launch(ScanOptions().apply {
             setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-            setPrompt("扫描 NightDesk 桌面二维码")
+            setPrompt("扫描 NightDesk 绑定或屏幕远控二维码")
             setBeepEnabled(false)
             setOrientationLocked(true)
         })
+    }
+
+    private fun handleQr(raw: String) {
+        val kind = try { JSONObject(raw).optString("kind") } catch (_: Exception) { "" }
+        when (kind) {
+            "nightdesk-pair" -> pairWithQr(raw)
+            "nightdesk-nx" -> pairNx(raw)
+            else -> toast("二维码不是 NightDesk 设备绑定或屏幕远控信息")
+        }
+    }
+
+    private fun pairNx(raw: String) {
+        if (working) return toast("当前操作完成后再连接屏幕远控")
+        val pairing = try { NxPairing.parse(raw) } catch (e: Exception) {
+            return toast(e.message ?: "屏幕远控二维码无效")
+        }
+        val host = pairing.host()
+        nxHosts = try { nxStore.upsert(host) } catch (e: Exception) {
+            return toast(e.message ?: "保存屏幕远控主机失败")
+        }
+        renderNxHosts()
+        startActivity(RemoteActivity.intent(this, host, pairing.code))
     }
 
     private fun pairWithQr(raw: String) {
@@ -394,6 +445,44 @@ class MainActivity : ComponentActivity() {
         if (::deleteHost.isInitialized) deleteHost.isEnabled = !working && items.isNotEmpty()
     }
 
+    private fun renderNxHosts() {
+        if (!::nxPicker.isInitialized) return
+        val items = nxHosts.items
+        val selectedId = items.getOrNull(nxPicker.selectedItemPosition)?.id
+        val labels = items.map { "${it.name} · ${it.addr}" }
+        val signature = labels.joinToString("\u0000")
+        if (signature != nxPickerSignature) {
+            nxPicker.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, labels)
+            nxPickerSignature = signature
+        }
+        val position = items.indexOfFirst { it.id == selectedId }.let { if (it >= 0) it else 0 }
+        if (items.isNotEmpty() && nxPicker.selectedItemPosition != position) nxPicker.setSelection(position)
+        nxPicker.isEnabled = items.size > 1
+        nxOpenButton.isEnabled = items.isNotEmpty()
+        nxDeleteButton.isEnabled = items.isNotEmpty()
+        nxHint.text = if (items.isEmpty()) "尚未保存屏幕远控主机"
+        else "${items.size} 台主机 · 证书指纹已固定；点击打开会优先尝试无码重连"
+    }
+
+    private fun openNxHost() {
+        val chosen = nxHosts.items.getOrNull(nxPicker.selectedItemPosition)
+            ?: return toast("还没有保存的屏幕远控主机")
+        startActivity(RemoteActivity.intent(this, chosen, null))
+    }
+
+    private fun deleteNxHost() {
+        val chosen = nxHosts.items.getOrNull(nxPicker.selectedItemPosition)
+            ?: return toast("还没有保存的屏幕远控主机")
+        confirm("从本机删除屏幕远控主机 ${chosen.name}？密码学信任仍保留在 Windows 端。") {
+            nxHosts = try { nxStore.remove(chosen.id) } catch (e: Exception) {
+                toast(e.message ?: "删除屏幕远控主机失败")
+                return@confirm
+            }
+            nxPickerSignature = ""
+            renderNxHosts()
+        }
+    }
+
     private fun applyHosts(updated: Hosts, reload: Boolean = false) {
         hosts = updated
         profile = updated.active?.profile
@@ -422,6 +511,7 @@ class MainActivity : ComponentActivity() {
     private fun renderState() {
         if (!::state.isInitialized) return
         renderHostPicker()
+        renderNxHosts()
         val current = status
         state.text = if (current == null) "连接电脑后显示实时显示状态" else
             "${if (current.remoteMode) "远程虚拟屏模式" else "本机显示模式"} · ${if (current.busy) "电脑忙碌" else "就绪"}\n" +
@@ -435,6 +525,17 @@ class MainActivity : ComponentActivity() {
         scanButton.isEnabled = !working
         listOf(host, tokenBox, width, height, rate, index, busySwitch).forEach {
             it.isEnabled = !working && (it !== busySwitch || status != null)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (::nxStore.isInitialized) {
+            runCatching { nxStore.load() }.onSuccess {
+                nxHosts = it
+                nxPickerSignature = ""
+                renderNxHosts()
+            }
         }
     }
 

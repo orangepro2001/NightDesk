@@ -7,8 +7,8 @@ android {
         applicationId = "dev.nightdesk.android"
         minSdk = 29
         targetSdk = 35
-        versionCode = providers.gradleProperty("nightdeskVersionCode").orElse("5").get().toInt()
-        versionName = providers.gradleProperty("nightdeskVersionName").orElse("1.0.4").get()
+        versionCode = providers.gradleProperty("nightdeskVersionCode").orElse("6").get().toInt()
+        versionName = providers.gradleProperty("nightdeskVersionName").orElse("1.1.0").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -28,6 +28,7 @@ android {
     lint { abortOnError = true }
 }
 dependencies {
+    implementation(files("libs/mobile.aar"))
     implementation("androidx.activity:activity-ktx:1.10.0")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("com.journeyapps:zxing-android-embedded:4.3.0")
