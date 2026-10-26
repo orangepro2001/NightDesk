@@ -8,7 +8,7 @@
 - Remote: `git@github.com:orangepro2001/NightDesk.git`.
 - Branch: `main`.
 - Initial import: `b1855e4 chore: initial NightDesk source import`.
-- Current code baseline: `1d5ce872e8b7fdc0377427f5b8139ce8904e10d8 docs: record Windows startup fix and artifact verification`; Android 1.1.0 publication documentation is added after this baseline.
+- Current feature baseline: `d720ce2eb18a793b348c3be209d9dedc095bc79d feat(desktop): add Windows-to-Windows control viewer`; documentation is added after this baseline.
 - This is a Git repository; the earlier note saying otherwise was stale.
 - `artifacts/` is intentionally ignored and is not committed; binaries are local delivery evidence, not source.
 
@@ -16,8 +16,8 @@
 
 - Host has Parsec VDD 0.45 installed, AMD graphics and GameViewer VDD.
 - Last recorded read-only diagnostic (`diagnostics.json`) shows only `\\.\DISPLAY6` (Parsec Virtual Display Adapter) as an active source; no active physical output was confirmed there.
-- At 2026-10-27 06:16 KST, `C:\Users\pixel\AppData\Local\NightDesk\recovery.json` was absent. Absence is not proof that display topology is safe.
-- At the same check, no `NightDesk` or `nx-host` process was running. `C:\Users\pixel\Desktop\NightDesk.exe` is the pre-fix 1.4.0 candidate (old SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`); its directory now contains `nx-host.exe`. Do not launch that old EXE.
+- At 2026-10-27 06:34 KST, `C:\Users\pixel\AppData\Local\NightDesk\recovery.json` existed again (351 bytes). The snapshot has not been independently verified; do not restore, toggle displays, or rebuild VDD.
+- At 2026-10-27 06:47 KST, `C:\Users\pixel\Desktop\NightDesk.exe` PID 28504 was running and `nx-host.exe` PID 4444 was listening on `100.109.77.29:7000` with `primary`, 10 FPS and the production state directory. Do not kill, replace, or start a second production host; real GDI/SendInput acceptance remains prohibited until the physical display and snapshot are verified.
 - Startup failure root cause: a literal `` `r`n `` text node in `src/NightDesk/MainWindow.xaml` made WPF add non-UI content to `WrapPanel.Children`, throwing from `UIElementCollection`. Fixed in commit `090b5c1`; see `docs/20261027-061608-windows-xaml-startup-fix-handoff.md`.
 - Do not exit/restart/replace that process, restore a snapshot, toggle displays, add/remove VDDs, install/uninstall display drivers, or run real `nx-host.exe` capture/SendInput on the production desktop until a physical display is available and the snapshot can be verified.
 - A later read-only WMI query listed an AMD adapter, but WMI resolution/status is not proof that the physical output topology is safe. Treat the recovery snapshot as authoritative until independently verified.
@@ -89,13 +89,17 @@
 
 ## Other current facts
 
-- Windows 1.4.0 candidate directory: `artifacts\win-x64-1.4.0`.
-- `NightDesk.exe`: size `201832196`, SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`, ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`.
+- Windows 1.5.0 candidate directory: `artifacts\win-x64-1.5.0`.
+- `NightDesk.exe`: size `201885444`, SHA-256 `50C71DADC8C1E425026CDC38C64DFEBE971E834B3E2DEE94F695F7E056EBD626`, ProductVersion `1.5.0+d720ce2eb18a793b348c3be209d9dedc095bc79d`.
 - `nx-host.exe`: size `7938048`, SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`, version `nx-host 0.2.0`.
 - Safe end-to-end probe: synthetic 1920x1080 source, 4 frames, 538 tile updates, 7/7 input receipts, differing frame digests, host exit 0; no GDI capture and no SendInput.
+- Windows desktop-to-desktop Viewer uses `System.Net.Quic`, TLS 1.3 and ALPN `go-nx`; the real test-mode host verified wrong-code rejection, first frame, ACK next frame, input receipt and host pin persistence.
+- Actual `NxViewerWindow` rendered the synthetic frame and status in a WPF smoke; screenshot hash `330922E18899891316F9F050425E860D6E4CC750BDD62BB0B4B1F285F82278D2`.
+- The native WPF QUIC viewer is currently limited to Windows 11 / Server 2022 or newer; Android remains independent.
 - Android 1.1.0 publication verification: package dev.nightdesk.android, versionCode 7, minSdk 29, v2 signature, ZIP integrity, local/AI/HTTPS SHA-256 equality, HTTP 200 for latest and versioned APK, and emulator live-feed tests OK (4 tests).
 - Publication documentation: docs/20261027-062721-android-1.1.0-publication-handoff.md.
-- Real GDI capture, SendInput/DPI/UAC behavior and physical Android tailnet acceptance remain unverified.
-- Release tests: **177 passed**, no display mutation.
+- Desktop-control documentation: docs/20261027-064503-windows-desktop-control-1.5.0-handoff.md.
+- Real GDI capture, SendInput/DPI/UAC behavior, two-machine tailnet UDP/QUIC and physical Android tailnet acceptance remain unverified.
+- Release tests: **203 passed**, no display mutation.
 - Release build: **0 warnings / 0 errors**.
 - `C:\dev\NightDesk` is a Git repository with remote `origin`; do not treat local artifact hashes as proof of end-to-end remote-control acceptance.

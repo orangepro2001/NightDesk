@@ -6,17 +6,17 @@
 
 ### Windows 桌面端
 
-- 代码基线：`090b5c1ecd7803ba717b97b378c37206ef36fdd1`
-- 候选版本：**1.4.0**
-- 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.4.0`
-- `NightDesk.exe`：`201832196` 字节，SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`，ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`。
+- 代码基线：`d720ce2eb18a793b348c3be209d9dedc095bc79d`
+- 候选版本：**1.5.0**
+- 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.5.0`
+- `NightDesk.exe`：`201885444` 字节，SHA-256 `50C71DADC8C1E425026CDC38C64DFEBE971E834B3E2DEE94F695F7E056EBD626`，ProductVersion `1.5.0+d720ce2eb18a793b348c3be209d9dedc095bc79d`。
 - `nx-host.exe`：`7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 为 `nx-host 0.2.0`。
 - 两个 EXE 必须同目录部署；sidecar 被明确排除在 single-file 包之外。
 - 发布必须使用 `tools\publish-windows.ps1`。脚本发布到全新 staging 目录，断言两份文件存在并运行 sidecar 冒烟检查。
-- Release 测试：**177 项通过，未改变显示状态**
+- Release 测试：**203 项通过，未改变显示状态**
 - Release 构建：**0 警告 / 0 错误**
-- 已实现：熄屏/点亮、Parsec VDD 增删与分辨率/刷新率配置、防休眠、可修改全局快捷键、Tailscale HTTPS 远程控制、扫码配对、永久设备令牌、受信任设备管理、统一程序图标。
-- 1.4.0 已把官方 Parsec VDD 安装器作为 EmbeddedResource 打入单文件 EXE。启动检测不到 VDD 时，验证载荷后以 UAC + `/S` 自动安装；每个用户环境自动尝试一次，失败后可从 UI 手动重试。驱动已安装时绝不重装或替换。
+- 已实现：熄屏/点亮、Parsec VDD 增删与分辨率/刷新率配置、防休眠、可修改全局快捷键、Tailscale HTTPS 远程控制、扫码配对、永久设备令牌、受信任设备管理、统一程序图标，以及 Windows 桌面控制 Windows。
+- 1.5.0 已把官方 Parsec VDD 安装器作为 EmbeddedResource 打入单文件 EXE。启动检测不到 VDD 时，验证载荷后以 UAC + `/S` 自动安装；每个用户环境自动尝试一次，失败后可从 UI 手动重试。驱动已安装时绝不重装或替换。
 - go-nx 远程数据面（阶段 1-7）已接入：
   - Windows 启动受 Job Object 监控的 `nx-host.exe` sidecar；
   - sidecar 采集单个显示器，发送 64×64 tile 差分；
@@ -24,13 +24,21 @@
   - WPF 通过 stdin/stdout JSON 行协议管理 sidecar；
   - sidecar 异常退出后清除陈旧的 running/ready 状态；
   - 它支持静态桌面和轻量交互，不是 H.264/HEVC/AV1 视频串流。
+- Windows 桌面控制 Windows（1.5.0）：
+  - 第 06 区输入目标地址、6 位配对码和可选主机证书指纹；
+  - `NxViewerSession` 使用 System.Net.Quic + TLS 1.3，固定目标指纹并持久化 Viewer 客户端身份；
+  - `NxViewerWindow` 用 WriteableBitmap 渲染 BGRA tile，转发鼠标、滚轮、快捷键和 Unicode；
+  - 失焦/关闭释放远端输入；配对码不落盘；
+  - 真实 `nx-host.exe -test-mode` 验证错误码、首帧、下一帧、输入回执和 pin；
+  - 实际控制窗口以合成画面完成渲染冒烟；
+  - 依赖 System.Net.Quic，当前要求 Windows 11 / Server 2022 或更新版本。
 - 阶段 7 安全端到端验收：
   - `nx-host.exe` 新增 `-test-mode`，必须同时指定 `-source pattern -inject log`，否则退出码 2；
   - 使用合成 1920×1080 动态源和日志输入，不抓屏、不调用 SendInput、不读写生产 trust store；
   - `nx-probe.exe` 走与 Android 相同的 pinned TLS、配对、QUIC 和 tile 解码路径；
   - 对发布版 `nx-host.exe` 实测：4 帧、538 tile 更新、7/7 输入回执、首末帧摘要不同、host 退出码 0；
   - Go Linux/Windows `vet`、`test`、交叉构建通过，8 个 Windows 测试二进制全部 PASS。
-- 尚未验收：真实 GDI 抓屏、真实 SendInput/DPI 映射/UAC 安全桌面、显示热插拔、Android 真机 tailnet UDP/QUIC、长时稳定性和资源占用。
+- 尚未验收：真实 GDI 抓屏、真实 SendInput/DPI 映射/UAC 安全桌面、Windows 双机 tailnet UDP/QUIC、显示热插拔、Android 真机 tailnet、长时稳定性和资源占用。
 
 ### Android 客户端
 
@@ -75,16 +83,15 @@
 
 ## 现场安全状态（必须保持）
 
-- 2026-10-27 06:16 KST 只读检查：没有 `NightDesk` 或 `nx-host` 进程。
-- `C:\Users\pixel\Desktop\NightDesk.exe` 仍是修复前的 1.4.0 候选（`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`），同目录已有 sidecar。该旧文件会复现启动错误，不得启动或部署。
-- `%LOCALAPPDATA%\NightDesk\recovery.json` 检查时**不存在**；这不等于显示拓扑安全，仍需独立复核。
+- 2026-10-27 06:47 KST 只读检查：Desktop 的 `NightDesk.exe` PID 28504 正在运行；`nx-host.exe` PID 4444 正以 `100.109.77.29:7000`、`primary`、10 FPS 和正式状态目录监听。不要强杀、不要启动第二个正式 host、不要做真实抓屏/SendInput 验收。
+- `%LOCALAPPDATA%\NightDesk\recovery.json` 在 06:34 KST 存在（351 字节）；显示快照尚未安全验收，仍需独立复核物理输出、DPI 和 VDD。
 - 上次只读诊断：唯一活动源为 `\\.\DISPLAY6`（Parsec VDD）；不能据此认定物理输出已经安全恢复。
 - 在物理显示器恢复且恢复快照可安全验证之前，禁止：
-  - 启动 Desktop 中修复前的旧候选，或执行真实抓屏/SendInput 验收；
+  - 再启动一个 Desktop 旧候选、强杀 PID 28504，或执行真实抓屏/SendInput 验收；
   - 执行熄屏、点亮、恢复快照；
   - 添加或删除 VDD 显示；
   - 卸载或重装显示驱动；
-  - 在生产桌面运行真实 `nx-host.exe` 抓屏或 SendInput。
+  - 在生产桌面启动第二个真实 `nx-host.exe` 或做抓屏/SendInput。
 - 本轮只运行了不触碰显示拓扑的 Windows Release 测试，以及只读进程/文件检查。
 
 ## 复核命令与结果
@@ -95,15 +102,15 @@ $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 & $dotnet build 'C:\dev\NightDesk\src\NightDesk\NightDesk.csproj' -c Release --no-restore
 ```
 
-- 当前输出：`177 tests passed. No display state changed.`
+- 当前输出：`203 tests passed. No display state changed.`
 - 构建：`0 个警告 / 0 个错误`。
-- Windows 1.4.0 两个 EXE 的大小、SHA-256 与 ProductVersion 已复核；发布脚本和 `nx-host.exe -version` 冒烟检查通过。
+- Windows 1.5.0 两个 EXE 的大小、SHA-256 与 ProductVersion 已复核；发布脚本和 `nx-host.exe -version` 冒烟检查通过。桌面控制窗口已用合成主机完成实际渲染冒烟。
 - Android stage 5 JVM/仪器测试和 APK 哈希来自 AI 验证目录 `/home/tony/dev/nightdesk-android-stage5`。
 - 线上 manifest 为 versionCode 7 / 1.1.0；本地 APK、AI 不可变 APK 与 HTTPS 下载内容 SHA-256 完全一致。发布成功不等于真实 GDI/SendInput/真机 tailnet 验收通过。
 
 ## 历史说明
 
 - 1.2.0 的现场进程来自此前的统一图标与远程控制归属修复；该进程保持运行。
-- 1.3.0 是 VDD 随包安装的中间构建，1.3.1 是当时生产构建，当前 Windows 交付候选为 1.4.0。
+- 1.3.0 是 VDD 随包安装的中间构建，1.3.1 是当时生产构建；当前 Windows 交付候选为 1.5.0。
 - 阶段 4 完成了固定证书查看器和基础输入；阶段 5 完成了连接失败可见、可重试和生命周期收口；2026-10-27 已将 1.1.0 发布到 AI 更新源。
 - 旧版记录中的 PID 22708 / 115 项测试 / 1.2.0 已过期，以本文和 `docs/HANDOFF.md` 为准。

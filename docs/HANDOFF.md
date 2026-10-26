@@ -2,21 +2,23 @@
 
 更新时间：2026-10-27（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前代码基线：`1d5ce872e8b7fdc0377427f5b8139ce8904e10d8`（Android 1.1.0 发布前基线）
-最新阶段交接：`docs\20261027-062721-android-1.1.0-publication-handoff.md`
+当前代码基线：`d720ce2eb18a793b348c3be209d9dedc095bc79d`（Windows 1.5.0 桌面控制）
+最新阶段交接：`docs\20261027-064503-windows-desktop-control-1.5.0-handoff.md`
 
 ## 1. 当前交付状态
 
-### Windows 桌面端 1.4.0 候选
+### Windows 桌面端 1.5.0 候选
 
-- 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.4.0`
-- `NightDesk.exe`：`201832196` 字节，SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`，ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`。
+- 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.5.0`
+- `NightDesk.exe`：`201885444` 字节，SHA-256 `50C71DADC8C1E425026CDC38C64DFEBE971E834B3E2DEE94F695F7E056EBD626`，ProductVersion `1.5.0+d720ce2eb18a793b348c3be209d9dedc095bc79d`。
 - `nx-host.exe`：`7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 输出 `nx-host 0.2.0`。
 - 这两个文件必须同目录部署；`nx-host.exe` 是独立 Go sidecar，刻意不并入 single-file 主程序。
-- Release 测试：**177 项通过**，输出 `No display state changed.`
+- Release 测试：**203 项通过**，输出 `No display state changed.`；其中真实 `nx-host.exe -test-mode` 集成验证错误配对码、首帧、ACK、输入回执和指纹持久化。
 - Release 构建：**0 警告 / 0 错误**
 - 发布必须使用 `tools\publish-windows.ps1`。脚本从全新 staging 目录发布、断言两份文件都存在、执行 sidecar 冒烟检查，再计算大小与 SHA-256。
-- 已实现：熄屏/点亮、VDD 增删与分辨率/刷新率、防休眠、可修改全局快捷键、Tailscale HTTPS 远程控制、扫码配对、永久设备令牌、受信任设备管理、统一图标、随包 VDD 自动安装。
+- 已实现：熄屏/点亮、VDD 增删与分辨率/刷新率、防休眠、可修改全局快捷键、Tailscale HTTPS 远程控制、扫码配对、永久设备令牌、受信任设备管理、统一图标、随包 VDD 自动安装，以及 Windows 桌面控制 Windows。
+- Windows 控制端位于第 06 区，支持目标地址、6 位配对码、可选主机指纹、固定主机 pin 和独立 WPF 控制窗口；失焦/关闭释放输入。依赖 `System.Net.Quic`，当前要求 Windows 11 / Server 2022 或更新版本。
+- 控制窗口代码：`NxViewerProtocol.cs`、`NxViewerSession.cs`、`NxViewerWindow.cs`；本地 Viewer 状态在 `%LOCALAPPDATA%\NightDesk\nx-viewer`。
 - 远程控制新增 go-nx 低带宽数据面：Windows 启动受监控的 `nx-host.exe` sidecar，生成含证书指纹和短期配对码的二维码；Android 原生查看器可扫码、固定证书并绘制 tile。阶段 5 已完成连接状态机、超时/重试/重新配对、后台释放输入和旧回调隔离；构建、单测、仪器测试和模拟器冒烟通过。阶段 7 新增 `nx-probe` 安全端到端验收：用与 Android 相同的 pinned TLS / 配对 / QUIC / tile 解码路径，在 1920×1080 合成动态源上验证 4 帧、538 个 tile 更新和 7/7 输入回执，不抓屏、不调用 SendInput。**真实 GDI 抓屏、SendInput 与真机 tailnet 仍未验收**。详见 `docs/20261027-041844-remote-control-stage-7-safe-e2e-probe-handoff.md`。
 
 ### Android 1.1.0 已发布版本（versionCode 7，取代 1.0.4）
@@ -56,16 +58,16 @@
 
 ## 2. 现场安全状态（最高优先级）
 
-- 2026-10-27 06:16 KST 只读检查：没有 `NightDesk` 或 `nx-host` 进程。
-- `C:\Users\pixel\Desktop\NightDesk.exe` 是修复前的 1.4.0 候选：`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`；同目录已有 `nx-host.exe`。该旧 EXE 会复现 XAML 启动错误，不得启动或部署。
-- 修复后的候选位于 `artifacts\win-x64-1.4.0`，已通过 WPF 启动冒烟；哈希与验收结果见 `docs\20261027-061608-windows-xaml-startup-fix-handoff.md`。
-- `%LOCALAPPDATA%\NightDesk\recovery.json` 在 06:16 KST 检查时**不存在**；这不能证明显示拓扑已经安全，仍需独立复核物理输出、DPI、VDD 和快照。
+- 2026-10-27 06:47 KST 只读检查：`C:\Users\pixel\Desktop\NightDesk.exe` PID 28504 正在运行；`nx-host.exe` PID 4444 正以 `100.109.77.29:7000`、`primary`、10 FPS 和正式状态目录监听。不要强杀、不要启动第二个正式 host、不要执行真实抓屏/SendInput 验收。
+- Desktop 的 `NightDesk.exe` 仍是修复前 1.4.0 候选（`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`）；1.5.0 部署必须先通过 UI 正常退出该进程并确认显示恢复。
+- 1.4.0 修复历史记录与启动冒烟见 `docs\20261027-061608-windows-xaml-startup-fix-handoff.md`；当前交付候选为 `artifacts\win-x64-1.5.0`。
+- `%LOCALAPPDATA%\NightDesk\recovery.json` 在 06:34 KST 已重新出现（351 字节）。这说明当前显示切换快照尚未安全验收；不要恢复、点亮、熄屏或删除/重建 VDD，除非现场物理输出和 DPI 已独立确认。
 - 在物理显示器恢复且恢复快照可安全验证之前，禁止：
-  - 启动 `C:\Users\pixel\Desktop\NightDesk.exe` 中修复前的 1.4.0 候选；
+  - 再启动一个 `C:\Users\pixel\Desktop\NightDesk.exe` 旧候选，或强杀当前 PID 28504；
   - 执行熄屏、点亮、恢复快照；
   - 添加或删除 VDD 显示；
   - 卸载/重装显示驱动；
-  - 在生产桌面启动真实 `nx-host.exe` 做抓屏或 SendInput 测试。
+  - 在生产桌面启动第二个真实 `nx-host.exe` 或做抓屏/SendInput 验收。
 - Android 1.1.0 已发布；Windows 部署和真实远控验收必须等现场恢复条件满足。
 
 ## 3. 需求与实现映射
@@ -224,7 +226,7 @@ $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 ```
 
 - 测试入口是无额外 NuGet 测试框架的可执行断言程序；用 `dotnet run`，不是 `dotnet test`。
-- 当前输出：`177 tests passed. No display state changed.`
+- 当前输出：`203 tests passed. No display state changed.`
 - Release 构建：0 警告 / 0 错误。
 
 ### Android / AI
@@ -277,7 +279,7 @@ adb -s emulator-5580 shell am instrument -w \
 
 ## 12. 受控部署与人工验收
 
-部署 1.4.0 前必须满足：
+部署 1.5.0 前必须满足：
 
 1. 有活动物理输出，且现场人员可恢复显示。
 2. `recovery.json` 可成功恢复并验证。
@@ -291,7 +293,7 @@ adb -s emulator-5580 shell am instrument -w \
 
 ## 13. 当前交付边界
 
-- Windows 1.4.0 修复候选已构建、测试并完成启动冒烟；`Desktop\NightDesk.exe` 仍是修复前的旧候选，尚未替换。部署时必须把修复后的 `NightDesk.exe` 与 `nx-host.exe` 一起复制到同一目录。
+- Windows 1.5.0 已构建、203 项测试通过，并使用实际控制窗口对合成主机完成渲染冒烟；`Desktop\NightDesk.exe` 仍是修复前的旧候选，尚未替换。部署时必须把新版 `NightDesk.exe` 与 `nx-host.exe` 一起复制到同一目录。
 - Android 1.1.0（versionCode 7）已发布到 AI 更新源，下载/哈希/签名和模拟器更新流程已验证；真实 GDI、SendInput、DPI/UAC、Android 真机和 tailnet UDP/QUIC 仍需人工验收。
 - VDD 随包自动安装已实现；真正缺驱动环境的端到端安装未在本机执行。
 - 应用不提供任意 shell 或文件访问接口；go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不等同于通用桌面控制。

@@ -1,8 +1,8 @@
 # NightDesk implementation plan
 
 更新时间：2026-10-27（Asia/Seoul）
-当前代码基线：`1d5ce872e8b7fdc0377427f5b8139ce8904e10d8`
-最新交接：`docs/20261027-062721-android-1.1.0-publication-handoff.md`
+当前代码基线：`d720ce2eb18a793b348c3be209d9dedc095bc79d`
+最新交接：`docs/20261027-064503-windows-desktop-control-1.5.0-handoff.md`
 
 ## Scope / assumptions
 
@@ -11,7 +11,7 @@
 - Recovery snapshot remains on disk until restoration is independently verified.
 - Official Parsec VDD installer is bundled and may be auto-installed when missing. Automatic Internet download is not used.
 - Remote control uses loopback HTTP behind Tailscale Serve HTTPS, bearer authentication and fixed commands; no Funnel.
-- go-nx is integrated as a separate Go sidecar plus a native Android viewer. It is a low-bandwidth tile data plane, not a video-streaming replacement.
+- go-nx is integrated as a separate Go host sidecar plus native Android and Windows WPF viewers. It is a low-bandwidth tile data plane, not a video-streaming replacement.
 - Android builds and debugging run only on SSH host `AI`.
 - Automated tests must not mutate display topology.
 
@@ -34,10 +34,11 @@
 15. [done] Update current handoff, acceptance, progress and planning documents with the 1.4.0 candidate and the production safety gate.
 16. [done] Stage 7 safe end-to-end probe: `nx-host -test-mode` with a synthetic pattern source and log-only injector, standalone `nx-probe`, negative misuse guard, moved-input receipts and published-artifact acceptance.
 17. [done] Publish Android 1.1.0 / versionCode 7 with backup, immutable APK, version alias and final atomic manifest replacement; verify HTTPS downloads and the emulator update flow.
+18. [done] Add Windows-to-Windows control: validated address/code/fingerprint input, persistent Viewer identity and host pins, native WPF QUIC viewer, tile rendering, input release, real test-mode integration and 1.5.0 publication.
 
 ## Verification
 
-- Windows Release tests: **177 passed**, output `177 tests passed. No display state changed.`
+- Windows Release tests: **203 passed**, output `203 tests passed. No display state changed.`; the new integration test uses only `nx-host -test-mode -source pattern -inject log`.
 - Windows Release build: **0 warnings / 0 errors**.
 - Windows publish: `tools\publish-windows.ps1` publishes into fresh staging, requires both `NightDesk.exe` and `nx-host.exe`, and checks `nx-host.exe -version`.
 - go-nx Linux/Windows: `gofmt` on touched files, `go vet`, `go test` and Windows cross-build pass; 8 cross-compiled test binaries pass on Windows.
@@ -49,16 +50,16 @@
 
 ## Current artifact facts
 
-- Windows candidate: `artifacts\win-x64-1.4.0`.
-  - `NightDesk.exe`: `201832196` bytes, SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`, ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`.
+- Windows candidate: `artifacts\win-x64-1.5.0`.
+  - `NightDesk.exe`: `201885444` bytes, SHA-256 `50C71DADC8C1E425026CDC38C64DFEBE971E834B3E2DEE94F695F7E056EBD626`, ProductVersion `1.5.0+d720ce2eb18a793b348c3be209d9dedc095bc79d`.
   - `nx-host.exe`: `7938048` bytes, SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`, version `nx-host 0.2.0`.
 - Android published release: 1.1.0 / versionCode 7, local artifact `artifacts\android\nightdesk-1.1.0-stage5.apk`, `55058900` bytes, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`; AI file `nightdesk-7.apk`.
 - Live Android feed is versionCode 7 / 1.1.0; old manifest backup is `manifest.json.bak-20261027-062447`.
-- Android 1.1.0 publication does not validate real GDI capture, SendInput, DPI/UAC, physical-device tailnet UDP/QUIC or long-run resource behavior.
+- Windows 1.5.0 publication does not validate real GDI capture, SendInput, DPI/UAC, two-machine tailnet UDP/QUIC or long-run resource behavior. The WPF viewer requires Windows 11 / Server 2022 or newer because it uses System.Net.Quic; Android is unaffected.
 
 ## Tracked issues / safety gate
 
-- At the 2026-10-27 06:16 KST check, no NightDesk process was running. `C:\Users\pixel\Desktop\NightDesk.exe` is the pre-fix 1.4.0 candidate (old SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`); do not launch it.
-- `C:\Users\pixel\AppData\Local\NightDesk\recovery.json` was absent; the last read-only diagnostic still showed only `\\.\DISPLAY6` (Parsec VDD). Absence is not proof that display topology is safe.
+- At 2026-10-27 06:47 KST, Desktop `NightDesk.exe` PID 28504 and production `nx-host.exe` PID 4444 were running. Do not kill them, overwrite files, or start a second production host; deploy 1.5.0 only after a normal UI exit and verified display recovery. `recovery.json` exists again (351 bytes).
+- `C:\Users\pixel\AppData\Local\NightDesk\recovery.json` exists again (351 bytes, 06:34 KST); the last read-only diagnostic still showed only `\\.\DISPLAY6` (Parsec VDD). Presence is not proof that display topology or the recovery snapshot is safe.
 - Do not toggle displays, restore a snapshot, add/remove a VDD, install/uninstall a display driver, or run real capture/SendInput on the production desktop until recovery is independently verified.
 - `docs/HANDOFF.md` safety instructions override older plan records.
