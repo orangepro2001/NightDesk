@@ -30,13 +30,15 @@ import (
 
 	"github.com/orangepro2001/nightdesk/native/internal/capture"
 	"github.com/orangepro2001/nightdesk/native/internal/inject"
+	"github.com/orangepro2001/nightdesk/native/internal/logsink"
 	"github.com/orangepro2001/nightdesk/native/internal/proto"
 	"github.com/orangepro2001/nightdesk/native/internal/remote"
+	"github.com/orangepro2001/nightdesk/native/internal/synth"
 	"github.com/orangepro2001/nightdesk/native/internal/tile"
 	"github.com/orangepro2001/nightdesk/native/internal/trust"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 const (
 	pairingWindow = 5 * time.Minute
@@ -61,6 +63,9 @@ type event struct {
 	Trusted     map[string]string `json:"trusted,omitempty"`
 	FPS         int               `json:"fps,omitempty"`
 	RequireAuth bool              `json:"requireAuth"`
+	TestMode    bool              `json:"testMode,omitempty"`
+	Source      string            `json:"source,omitempty"`
+	InputMode   string            `json:"inputMode,omitempty"`
 }
 
 type command struct {
@@ -83,7 +88,7 @@ func (e *emitter) emit(ev event) {
 	if e.human {
 		switch ev.Event {
 		case "ready":
-			fmt.Fprintln(os.Stderr, fmt.Sprintf("listening on %s, display %s %dx%d", ev.Listen, ev.Display, ev.Width, ev.Height))
+			fmt.Fprintln(os.Stderr, fmt.Sprintf("listening on %s, display %s %dx%d identity %s", ev.Listen, ev.Display, ev.Width, ev.Height, ev.Identity))
 		case "pairing":
 			fmt.Fprintln(os.Stderr, fmt.Sprintf("pairing code %s (valid %ds)", ev.Code, ev.ExpiresIn))
 		case "connected", "disconnected":
@@ -111,6 +116,9 @@ func main() {
 		pair       = flag.Bool("pair", false, "open pairing at startup")
 		noAuth     = flag.Bool("no-auth", false, "accept any viewer; development only")
 		control    = flag.String("control", "stdio", "stdio for JSON lines on stdin/stdout, none for a console host")
+		testMode   = flag.Bool("test-mode", false, "isolated pattern/log acceptance mode; requires -source pattern -inject log")
+		sourceMode = flag.String("source", "gdi", "gdi for real capture or pattern for a synthetic test pattern")
+		injectMode = flag.String("inject", "sendinput", "sendinput for real input or log to accept input without touching the desktop")
 		showVer    = flag.Bool("version", false, "print version and exit")
 	)
 	flag.Parse()
@@ -122,27 +130,67 @@ func main() {
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
 	log.SetOutput(os.Stderr)
 
-	dir := *stateDir
-	if dir == "" {
-		base := os.Getenv("LOCALAPPDATA")
-		if base == "" {
-			base = os.Getenv("TEMP")
-		}
-		dir = filepath.Join(base, "NightDesk", "nx-host")
+	if *sourceMode != "gdi" && *sourceMode != "pattern" {
+		fatalMsg(&emitter{human: *control == "none"}, "unknown -source "+*sourceMode+" (want gdi or pattern)")
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		fatal(&emitter{human: *control == "none"}, "cannot create state directory", err)
+	if *injectMode != "sendinput" && *injectMode != "log" {
+		fatalMsg(&emitter{human: *control == "none"}, "unknown -inject "+*injectMode+" (want sendinput or log)")
+	}
+	if (*sourceMode != "gdi" || *injectMode != "sendinput") && !*testMode {
+		fatalMsg(&emitter{human: *control == "none"}, "-source pattern and -inject log require -test-mode")
+	}
+	// A test-mode process must never be able to touch the desktop, even when a
+	// flag such as -source gdi is passed by accident.
+	if *testMode && (*sourceMode != "pattern" || *injectMode != "log") {
+		fatalMsg(&emitter{human: *control == "none"}, "-test-mode requires exactly -source pattern -inject log")
 	}
 
 	em := &emitter{human: *control == "none"}
-
-	scr, err := capture.Open(*display)
-	if err != nil {
-		fatal(em, "cannot open display", err)
+	dir := *stateDir
+	if dir == "" {
+		if *testMode {
+			// Keep acceptance runs away from the production identity and trust
+			// store. The temporary directory is removed when the host exits.
+			tmp, err := os.MkdirTemp("", "nx-host-test-")
+			if err != nil {
+				fatal(em, "cannot create test state directory", err)
+			}
+			dir = tmp
+			defer os.RemoveAll(tmp)
+		} else {
+			base := os.Getenv("LOCALAPPDATA")
+			if base == "" {
+				base = os.Getenv("TEMP")
+			}
+			dir = filepath.Join(base, "NightDesk", "nx-host")
+		}
 	}
-	defer scr.Close()
-	d := scr.Display()
-	log.Printf("capture: %s", d)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		fatal(em, "cannot create state directory", err)
+	}
+
+	var (
+		src remote.Source
+		d   capture.Display
+	)
+	if *sourceMode == "pattern" {
+		p, err := synth.New(synth.DefaultWidth, synth.DefaultHeight)
+		if err != nil {
+			fatal(em, "cannot create test pattern", err)
+		}
+		src = p
+		d = capture.Display{Device: "pattern", W: synth.DefaultWidth, H: synth.DefaultHeight, Primary: true, DPI: 96}
+		log.Printf("capture: %s (TEST MODE: synthetic)", d)
+	} else {
+		scr, err := capture.Open(*display)
+		if err != nil {
+			fatal(em, "cannot open display", err)
+		}
+		defer scr.Close()
+		src = &checkedSource{Screen: scr}
+		d = scr.Display()
+		log.Printf("capture: %s", d)
+	}
 
 	id, err := trust.Identity(dir)
 	if err != nil {
@@ -164,9 +212,14 @@ func main() {
 	}
 	defer ln.Close()
 
-	vx, vy, vw, vh := capture.VirtualScreen()
-	inj := inject.NewDisplay(int(d.W), int(d.H), int(d.X), int(d.Y), vx, vy, vw, vh)
-	src := &checkedSource{Screen: scr}
+	var inj remote.Injector
+	if *injectMode == "log" {
+		inj = logsink.New(log.Default())
+		log.Printf("TEST MODE: input is logged, not injected")
+	} else {
+		vx, vy, vw, vh := capture.VirtualScreen()
+		inj = inject.NewDisplay(int(d.W), int(d.H), int(d.X), int(d.Y), vx, vy, vw, vh)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -175,6 +228,7 @@ func main() {
 		em: em, policy: policy, store: store, cancel: cancel,
 		identity: trust.Fingerprint(id.Certificate[0]),
 		display:  d, listen: *listenAddr,
+		testMode: *testMode, source: *sourceMode, inputMode: *injectMode,
 	}
 	h.fps.Store(int32(max(*fps, 1)))
 
@@ -182,7 +236,11 @@ func main() {
 		Event: "ready", Version: version, PID: os.Getpid(), Listen: *listenAddr,
 		Display: d.Device, Width: int(d.W), Height: int(d.H), DPI: d.DPI,
 		Identity: h.identity, FPS: int(h.fps.Load()), RequireAuth: policy.RequireAuth(),
+		TestMode: *testMode, Source: *sourceMode, InputMode: *injectMode,
 	})
+	if *testMode {
+		em.emit(event{Event: "warning", Message: "TEST MODE: synthetic source and logged input; no screen capture or OS input"})
+	}
 
 	go h.acceptLoop(ctx, ln, src, inj)
 
@@ -213,15 +271,24 @@ func fatal(em *emitter, msg string, err error) {
 	os.Exit(2)
 }
 
+func fatalMsg(em *emitter, msg string) {
+	em.emit(event{Event: "error", Message: msg})
+	log.Printf("%s", msg)
+	os.Exit(2)
+}
+
 type host struct {
-	em       *emitter
-	policy   *trust.Policy
-	store    *trust.Store
-	cancel   context.CancelFunc
-	fps      atomic.Int32
-	identity string
-	display  capture.Display
-	listen   string
+	em        *emitter
+	policy    *trust.Policy
+	store     *trust.Store
+	cancel    context.CancelFunc
+	fps       atomic.Int32
+	identity  string
+	display   capture.Display
+	listen    string
+	testMode  bool
+	source    string
+	inputMode string
 
 	mu         sync.Mutex
 	active     *quic.Conn
@@ -259,7 +326,7 @@ func (h *host) check(fp, addr, password string) (trust.Verdict, error) {
 	return v, err
 }
 
-func (h *host) acceptLoop(ctx context.Context, ln *quic.Listener, src *checkedSource, inj *inject.Injector) {
+func (h *host) acceptLoop(ctx context.Context, ln *quic.Listener, src remote.Source, inj remote.Injector) {
 	var (
 		dd    = proto.NewDedup()
 		input = remote.NewInputController(inj)
@@ -276,7 +343,7 @@ func (h *host) acceptLoop(ctx context.Context, ln *quic.Listener, src *checkedSo
 	}
 }
 
-func (h *host) serve(ctx context.Context, conn *quic.Conn, src *checkedSource, inj *inject.Injector, dd *proto.Dedup, input *remote.InputController) {
+func (h *host) serve(ctx context.Context, conn *quic.Conn, src remote.Source, inj remote.Injector, dd *proto.Dedup, input *remote.InputController) {
 	addr := conn.RemoteAddr().String()
 	err := remote.Serve(ctx, conn, src, inj, dd, remote.Options{
 		FPS:             int(h.fps.Load()),
@@ -374,6 +441,7 @@ func (h *host) readCommands(r *os.File) {
 				RequireAuth: h.policy.RequireAuth(), Listen: h.listen,
 				Display: h.display.Device, Width: int(h.display.W), Height: int(h.display.H),
 				Addr: h.controller, Identity: h.identity,
+				Source: h.source, InputMode: h.inputMode, TestMode: h.testMode,
 				Message: fmt.Sprintf("frames=%d", h.frames.Load()),
 			})
 		case "stop":
