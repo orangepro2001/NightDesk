@@ -37,6 +37,7 @@ public partial class MainWindow : Window
         WidthBox.Text = settings.Width.ToString(); HeightBox.Text = settings.Height.ToString(); RefreshBox.Text = settings.RefreshRate.ToString();
         HotkeyBox.Text = settings.Hotkey;
         NxListenBox.Text = settings.NxHostListen; NxDisplayBox.Text = settings.NxHostDisplay; NxFpsBox.Text = settings.NxHostFps.ToString();
+        NxViewerAddressBox.Text = settings.NxViewerAddress; NxViewerFingerprintBox.Text = settings.NxViewerFingerprint;
         nxHost.Changed += () => Dispatcher.BeginInvoke(RefreshNxUi);
         nxHost.Log += message => RemoteDiagnostics.Log("nx-host: " + message);
         nxHost.EventReceived += value => Dispatcher.BeginInvoke(() => HandleNxEvent(value));
@@ -512,7 +513,7 @@ public partial class MainWindow : Window
         try
         {
             var ready = await nxHost.StartAsync(options);
-            SetStatus($"低带宽远控已启动：{ready.Width}×{ready.Height} @ {ready.Fps} FPS，监听 {ready.Listen}。请生成配对码并用手机连接。");
+            SetStatus($"低带宽远控已启动：{ready.Width}×{ready.Height} @ {ready.Fps} FPS，监听 {ready.Listen}。请生成配对码并用手机或桌面端连接。");
         }
         catch
         {
@@ -525,7 +526,7 @@ public partial class MainWindow : Window
     {
         if (!nxHost.IsRunning) throw new InvalidOperationException("请先启用低带宽远控。");
         if (IPEndPoint.TryParse(NxListenBox.Text.Trim(), out var endpoint) && IPAddress.IsLoopback(endpoint.Address))
-            throw new InvalidOperationException("当前只监听环回地址，手机无法连接。请先停止远控，点击“填入 Tailscale 地址”，再重新启用。");
+            throw new InvalidOperationException("当前只监听环回地址，其它设备无法连接。请先停止远控，点击“填入 Tailscale 地址”，再重新启用。");
         await nxHost.PairAsync(300);
         SetStatus("正在打开 5 分钟配对窗口…");
     });
@@ -536,7 +537,7 @@ public partial class MainWindow : Window
         tailscale ??= new TailscaleService();
         string ipv4 = await tailscale.GetIPv4Async();
         NxListenBox.Text = NxPairingPayload.WithHost(NxListenBox.Text.Trim(), ipv4);
-        SetStatus($"已填入 Tailscale 地址 {ipv4}。启用远控后即可生成手机可扫描的二维码。");
+        SetStatus($"已填入 Tailscale 地址 {ipv4}。启用远控后即可生成手机可扫描、桌面端可输入的连接信息。");
     });
 
     private async void NxRefresh_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
@@ -598,6 +599,47 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void NxViewerConnect_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        var target = NxViewerTarget.Parse(NxViewerAddressBox.Text);
+        string code = NxViewerCodeBox.Text.Trim();
+        if (code.Length > 0 && (code.Length != 6 || !code.All(char.IsAsciiDigit)))
+            throw new ArgumentException("配对码必须为 6 位数字；已配对设备可留空。");
+        string fingerprint = NxViewerSecurity.NormalizeFingerprint(NxViewerFingerprintBox.Text);
+
+        settings.NxViewerAddress = target.Address;
+        settings.NxViewerFingerprint = fingerprint;
+        store.Save(settings);
+        NxViewerAddressBox.Text = target.Address;
+        NxViewerFingerprintBox.Text = fingerprint;
+        NxViewerCodeBox.Clear();
+
+        var viewer = new NxViewerWindow(target, code, fingerprint, store.LocalNxViewerDirectory, this);
+        viewer.StatusChanged += (message, failed) =>
+        {
+            NxViewerStatusLabel.Text = message;
+            NxViewerStatusLabel.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter()
+                .ConvertFromString(failed ? "#E9B394" : "#A6B5AA")!;
+            SetStatus("桌面控制：" + message, failed);
+        };
+        viewer.Closed += (_, _) => NxViewerStatusLabel.Text = "控制窗口已关闭；远端输入状态已释放。";
+        NxViewerStatusLabel.Text = $"正在打开到 {target.Address} 的控制窗口…";
+        viewer.Show();
+        await Task.CompletedTask;
+    });
+
+    private async void NxViewerForget_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        var target = NxViewerTarget.Parse(NxViewerAddressBox.Text);
+        bool removed = NxViewerPinStore.Load(store.LocalNxViewerDirectory).Remove(target);
+        NxViewerFingerprintBox.Clear();
+        settings.NxViewerFingerprint = "";
+        store.Save(settings);
+        SetStatus(removed
+            ? $"已清除 {target.Address} 的固定主机指纹。下次连接会重新首次信任。"
+            : $"{target.Address} 没有保存的主机指纹。");
+        await Task.CompletedTask;
+    });
     private async void Exit_Click(object sender, RoutedEventArgs e) => await ExitAsync();
 }
 

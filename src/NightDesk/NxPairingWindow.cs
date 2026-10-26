@@ -35,14 +35,14 @@ public sealed class NxPairingWindow : Window
         });
         panel.Children.Add(new TextBlock
         {
-            Text = "用 NightDesk Android 扫码",
+            Text = "用 Android 扫码，或输入到桌面控制端",
             FontSize = 25,
             FontWeight = FontWeights.SemiBold,
             Margin = new Thickness(0, 6, 0, 6)
         });
         panel.Children.Add(new TextBlock
         {
-            Text = "手机必须先校验证书指纹，再发送 6 位配对码。二维码只含短期配对码、地址和主机指纹，不含长期令牌。",
+            Text = "手机必须先校验证书指纹，再发送 6 位配对码。桌面端可复制下方地址、配对码和主机指纹后手动连接。二维码和复制信息都不含长期令牌。",
             Foreground = new SolidColorBrush(Color.FromRgb(172, 188, 175)),
             TextWrapping = TextWrapping.Wrap,
             LineHeight = 23
@@ -138,12 +138,45 @@ public sealed class NxPairingWindow : Window
             Padding = new Thickness(8, 5, 8, 5)
         });
 
+        var copied = new TextBlock
+        {
+            Text = "已复制地址、配对码和主机指纹",
+            Foreground = new SolidColorBrush(Color.FromRgb(210, 238, 154)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 12, 0, 0),
+            Visibility = Visibility.Collapsed
+        };
+        panel.Children.Add(copied);
+        var copy = new Button
+        {
+            Content = "复制连接信息",
+            Padding = new Thickness(18, 9, 18, 9),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 12, 0, 0),
+            Background = new SolidColorBrush(Color.FromRgb(52, 68, 59)),
+            Foreground = new SolidColorBrush(Color.FromRgb(230, 238, 234)),
+            BorderThickness = new Thickness(0),
+            FontWeight = FontWeights.SemiBold
+        };
+        copy.Click += (_, _) =>
+        {
+            try
+            {
+                Clipboard.SetText($"NightDesk 低带宽远控\n地址：{pairing.Addr}\n配对码：{pairing.Code}\n主机指纹：{pairing.Fingerprint}");
+                copied.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, "复制连接信息", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        };
+        panel.Children.Add(copy);
         var close = new Button
         {
             Content = "关闭",
             Padding = new Thickness(18, 9, 18, 9),
             HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 16, 0, 0),
+            Margin = new Thickness(0, 10, 0, 0),
             Background = new SolidColorBrush(Color.FromRgb(210, 238, 154)),
             Foreground = new SolidColorBrush(Color.FromRgb(23, 32, 24)),
             BorderThickness = new Thickness(0),

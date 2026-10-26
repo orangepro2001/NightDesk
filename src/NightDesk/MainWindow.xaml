@@ -86,7 +86,22 @@
      <WrapPanel Margin="0,10,0,0"><Button x:Name="NxUntrustButton" Click="NxUntrust_Click" Content="解除所选设备信任" Style="{StaticResource Secondary}" IsEnabled="False"/></WrapPanel>
      <TextBlock Text="配对码 5 分钟有效且仅能绑定一台新设备；连续 5 次错误会锁定 1 分钟。sidecar 退出或 NightDesk 崩溃时，Windows Job Object 会一并终止它。" Foreground="#8FA79A" FontSize="12" Margin="0,10,0,0"/>
     </StackPanel></Border>
-    <Expander Header="当前显示设备 / 诊断" Foreground="#ACBCAF" Margin="3,4,0,8"><TextBox x:Name="DiagnosticsBox" IsReadOnly="True" TextWrapping="Wrap" Margin="0,10,0,0" FontFamily="Consolas"/></Expander>
+    <Border Style="{StaticResource Card}"><StackPanel>
+     <TextBlock Text="06 / 桌面控制桌面 (WINDOWS → WINDOWS)" Foreground="#A6B5AA" FontFamily="Consolas" FontSize="12"/>
+     <TextBlock Text="连接另一台 Windows NightDesk" FontSize="20" Margin="0,10,0,6"/>
+     <TextBlock Text="在目标桌面启用低带宽远控并生成配对码，然后在这里输入它的 Tailscale 地址。首次连接可填写目标端显示的主机证书指纹；留空则首次信任并固定该指纹，后续变化会拒绝连接。" Foreground="#ACBCAF"/>
+     <Grid Margin="0,16,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="2.4*"/></Grid.ColumnDefinitions>
+      <StackPanel Margin="0,0,12,0"><TextBlock Text="目标地址 (UDP)" Margin="0,0,0,6"/><TextBox x:Name="NxViewerAddressBox" AutomationProperties.Name="目标桌面地址" ToolTip="例如 100.x.y.z:7000 或 hostname:7000"/></StackPanel>
+      <StackPanel Margin="0,0,12,0"><TextBlock Text="配对码（6 位）" Margin="0,0,0,6"/><TextBox x:Name="NxViewerCodeBox" MaxLength="6" AutomationProperties.Name="目标桌面配对码"/></StackPanel>
+      <StackPanel><TextBlock Text="主机指纹（可选）" Margin="0,0,0,6"/><TextBox x:Name="NxViewerFingerprintBox" AutomationProperties.Name="目标主机证书指纹"/></StackPanel>
+     </Grid>
+     <WrapPanel Margin="0,14,0,0">
+      <Button x:Name="NxViewerConnectButton" Click="NxViewerConnect_Click" Content="打开桌面控制窗口"/>
+      <Button x:Name="NxViewerForgetButton" Click="NxViewerForget_Click" Content="清除已固定指纹" Style="{StaticResource Secondary}"/>
+     </WrapPanel>
+     <Border Background="#101815" CornerRadius="8" Padding="14" Margin="0,14,0,0"><TextBlock x:Name="NxViewerStatusLabel" Text="尚未连接其它桌面" Foreground="#A6B5AA" TextWrapping="Wrap"/></Border>
+     <TextBlock Text="配对码不保存到磁盘；地址和可选指纹会保存。关闭控制窗口或窗口失焦会释放远端按键和鼠标按钮。QUIC 使用 UDP，Tailscale Serve 不能代理这条数据链路。桌面控制窗口依赖 System.Net.Quic；当前官方支持为 Windows 11 / Server 2022 及更新版本。" Foreground="#8FA79A" FontSize="12" Margin="0,10,0,0"/>
+    </StackPanel></Border>    <Expander Header="当前显示设备 / 诊断" Foreground="#ACBCAF" Margin="3,4,0,8"><TextBox x:Name="DiagnosticsBox" IsReadOnly="True" TextWrapping="Wrap" Margin="0,10,0,0" FontFamily="Consolas"/></Expander>
     <Button Content="退出 NightDesk" Click="Exit_Click" Style="{StaticResource Secondary}" HorizontalAlignment="Right" Margin="0,8,8,0"/>
    </StackPanel>
   </ScrollViewer>

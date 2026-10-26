@@ -41,6 +41,7 @@
 23. [done] Re-run Go Linux/Windows checks and the Android stage 5 test suite on AI; record the stage 7 handoff and acceptance facts.
 24. [done] Repair the Windows XAML startup crash, add a static regression test, republish the Windows candidate and pass WPF startup smoke verification.
 25. [done] Publish Android 1.1.0 (versionCode 7) to the AI feed, back up the old manifest, verify immutable APK/alias/manifest atomically, and re-run the 4 live-feed instrumented tests.
+26. [in progress] Add desktop-to-desktop control to the Windows app: address/code/fingerprint input, pinned C# QUIC viewer window, safe input handling, synthetic host integration test and recovery documentation.
 
 ## Verification invariants
 
@@ -95,3 +96,15 @@
 - Last recorded read-only diagnostic reports the only active source as `\\.\DISPLAY6` (Parsec VDD); no active physical output was confirmed in that diagnostic.
 - Do not toggle displays, restore a snapshot, add/remove a VDD, install/uninstall a display driver, or run real capture/SendInput while recovery is unverified.
 - `docs/HANDOFF.md`现场安全说明优先于本文件的任何旧状态记录。
+
+## Current feature plan: desktop-to-desktop control
+
+Goal: let a Windows NightDesk instance control another Windows NightDesk go-nx host without relying on Android or a QR scanner.
+
+1. [done] Add validated target address, one-time pairing code and optional host-fingerprint fields to the WPF UI; persist address/fingerprint but never the pairing code.
+2. [done] Implement a pinned C# QUIC client with a persistent viewer identity, TLS 1.3, go-nx ALPN, tile decoding, ACK/receipt handling and classified connection errors.
+3. [done] Add a dedicated viewer window with aspect-correct rendering, keyboard/mouse/wheel forwarding and release-all on focus loss/close.
+4. [done] Verify address/fingerprint/protocol parsing with unit tests and the real `nx-host.exe -test-mode -source pattern -inject log` binary; do not use GDI or SendInput.
+5. [in progress] Rebuild/publish the Windows candidate, record tests, hashes and manual acceptance limits in timestamped documentation.
+
+Success criteria: entering a reachable host address and the current pairing code opens a live control window; a wrong code or wrong fingerprint fails closed; closing the viewer releases all input; synthetic frames and input receipts pass without touching the display topology.

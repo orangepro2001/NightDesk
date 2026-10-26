@@ -74,6 +74,8 @@ public sealed class SettingsStore
     public string LocalDevicesPath => Path.Combine(directory, "trusted-devices.dat");
 
     public string LocalNxHostDirectory => Path.Combine(directory, "nx-host");
+    public string LocalNxViewerDirectory => Path.Combine(directory, "nx-viewer");
+
 
     private static void AtomicWrite(string path, string value)
     {

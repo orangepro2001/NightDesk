@@ -35,6 +35,9 @@ public sealed class AppSettings
     public string NxHostListen { get; set; } = "127.0.0.1:7000";
     public string NxHostDisplay { get; set; } = "primary";
     public int NxHostFps { get; set; } = 10;
+    // Desktop-to-desktop viewer. The pairing code is deliberately not persisted.
+    public string NxViewerAddress { get; set; } = "";
+    public string NxViewerFingerprint { get; set; } = "";
 }
 
 public static class Security

@@ -338,6 +338,57 @@ Reject(() => new NxPairingPayload("192.168.1.2:7000", nxFingerprint, "123456", D
 Reject(() => new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), "PC", 63, 1080).Validate(), "NX QR rejects too-small frame");
 Reject(() => new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), "PC", 1920, 16385).Validate(), "NX QR rejects too-large frame");
 
+var viewerTarget = NxViewerTarget.Parse("100.100.2.3:7001");
+Check(viewerTarget.Address == "100.100.2.3:7001" && viewerTarget.Port == 7001, "viewer parses IPv4 and explicit port");
+Check(NxViewerTarget.Parse("host.tailnet.ts.net").Port == 7000, "viewer defaults to UDP 7000");
+Check(NxViewerTarget.Parse("[fd7a:115c:a1e0::2]:7000").Address == "[fd7a:115c:a1e0::2]:7000", "viewer parses bracketed IPv6");
+Reject(() => NxViewerTarget.Parse("https://host:7000"), "viewer rejects URL syntax");
+Reject(() => NxViewerTarget.Parse("host:0"), "viewer rejects zero port");
+Reject(() => NxViewerTarget.Parse("fd00::1:7000"), "viewer requires brackets for ambiguous IPv6");
+Check(NxViewerSecurity.NormalizeFingerprint(new string('A', 64).Insert(2, ":")) == new string('a', 64), "viewer normalizes partial fingerprint separators");
+Reject(() => NxViewerSecurity.NormalizeFingerprint("xyz"), "viewer rejects malformed fingerprint");
+byte[] helloPacket = NxViewerWire.Hello("123456");
+Check(helloPacket.Length == 8 && helloPacket[0] == NxViewerWire.MsgHello && helloPacket[1] == 6, "viewer encodes hello");
+byte[] inputPacket = NxViewerWire.Input(9, NxViewerInputKind.MouseDown, 10, 20, 1);
+Check(inputPacket.Length == 22 && BitConverter.ToUInt64(inputPacket, 1) == 9 && inputPacket[9] == NxViewerInputKind.MouseDown &&
+      BitConverter.ToInt32(inputPacket, 10) == 10 && BitConverter.ToInt32(inputPacket, 18) == 1, "viewer encodes input action");
+Reject(() => NxViewerWire.Text(0, new string('x', 1025)), "viewer rejects oversized text action");
+byte[] receiptPacket = new byte[10]; receiptPacket[0] = NxViewerWire.MsgReceipt;
+BitConverter.GetBytes(77UL).CopyTo(receiptPacket, 1); receiptPacket[9] = 1;
+Check(NxViewerWire.TryReadReceipt(receiptPacket, out ulong receiptOperation, out byte receiptStatus) &&
+      receiptOperation == 77 && receiptStatus == 1, "viewer decodes receipt");
+byte[] solidFrame = new byte[64 * 64 * 4];
+byte[] solidTile = new byte[13]; solidTile[4] = 0; BitConverter.GetBytes(4u).CopyTo(solidTile, 5);
+solidTile[9] = 1; solidTile[10] = 2; solidTile[11] = 3; solidTile[12] = 255;
+IReadOnlyList<NxViewerRect> solidDirty = NxViewerTileDecoder.Apply(solidFrame, 64, 64, solidTile);
+Check(solidDirty.Count == 1 && solidDirty[0] == new NxViewerRect(0, 0, 64, 64) &&
+      solidFrame[0] == 1 && solidFrame[1] == 2 && solidFrame[2] == 3 && solidFrame[3] == 255,
+      "viewer decodes a solid BGRA tile");
+byte[] truncatedTile = new byte[9]; BitConverter.GetBytes(4u).CopyTo(truncatedTile, 5);
+bool truncatedRejected = false;
+try { _ = NxViewerTileDecoder.Apply(solidFrame, 64, 64, truncatedTile); }
+catch (InvalidDataException) { truncatedRejected = true; }
+Check(truncatedRejected, "viewer rejects a truncated tile");
+
+string viewerStateDir = Path.Combine(Path.GetTempPath(), "nightdesk-viewer-unit-" + Guid.NewGuid().ToString("N"));
+try
+{
+    using var identityOne = NxViewerIdentity.LoadOrCreate(viewerStateDir);
+    using var identityTwo = NxViewerIdentity.LoadOrCreate(viewerStateDir);
+    Check(NxViewerSecurity.ComputeFingerprint(identityOne) == NxViewerSecurity.ComputeFingerprint(identityTwo),
+        "viewer identity is stable");
+    var pinStore = NxViewerPinStore.Load(viewerStateDir);
+    Check(pinStore.Get(viewerTarget) is null, "viewer pin store starts empty");
+    pinStore.Set(viewerTarget, nxFingerprint.ToLowerInvariant());
+    Check(NxViewerPinStore.Load(viewerStateDir).Get(viewerTarget) == nxFingerprint.ToLowerInvariant(),
+        "viewer pin store persists a host fingerprint");
+    Check(pinStore.Remove(viewerTarget) && NxViewerPinStore.Load(viewerStateDir).Get(viewerTarget) is null,
+        "viewer pin store removes a host fingerprint");
+}
+finally
+{
+    if (Directory.Exists(viewerStateDir)) Directory.Delete(viewerStateDir, true);
+}
 string locatorDir = Path.Combine(Path.GetTempPath(), "nightdesk-locator-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(locatorDir);
 string locatorExe = Path.Combine(locatorDir, "nx-host.exe");
@@ -477,6 +528,7 @@ finally
     if (Directory.Exists(nxDir)) Directory.Delete(nxDir, true);
 }
 
+passed += await NxViewerIntegration.VerifyAsync(FindRepoFile(Path.Combine("src", "NightDesk", "Assets", "nx-host", "nx-host.exe")));
 Console.WriteLine($"{passed} tests passed. No display state changed.");
 
 
