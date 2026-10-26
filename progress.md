@@ -6,14 +6,14 @@
 
 ### Windows 桌面端
 
-- 代码基线：`fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`
+- 代码基线：`090b5c1ecd7803ba717b97b378c37206ef36fdd1`
 - 候选版本：**1.4.0**
 - 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.4.0`
-- `NightDesk.exe`：`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`。
+- `NightDesk.exe`：`201832196` 字节，SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`，ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`。
 - `nx-host.exe`：`7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 为 `nx-host 0.2.0`。
 - 两个 EXE 必须同目录部署；sidecar 被明确排除在 single-file 包之外。
 - 发布必须使用 `tools\publish-windows.ps1`。脚本发布到全新 staging 目录，断言两份文件存在并运行 sidecar 冒烟检查。
-- Release 测试：**176 项通过，未改变显示状态**
+- Release 测试：**177 项通过，未改变显示状态**
 - Release 构建：**0 警告 / 0 错误**
 - 已实现：熄屏/点亮、Parsec VDD 增删与分辨率/刷新率配置、防休眠、可修改全局快捷键、Tailscale HTTPS 远程控制、扫码配对、永久设备令牌、受信任设备管理、统一程序图标。
 - 1.4.0 已把官方 Parsec VDD 安装器作为 EmbeddedResource 打入单文件 EXE。启动检测不到 VDD 时，验证载荷后以 UAC + `/S` 自动安装；每个用户环境自动尝试一次，失败后可从 UI 手动重试。驱动已安装时绝不重装或替换。
@@ -74,12 +74,12 @@
 
 ## 现场安全状态（必须保持）
 
-- 当前运行进程：**PID 13816**，ProductVersion **1.3.1**，路径 `C:\Users\pixel\Desktop\NightDesk.exe`，启动时间 `2026/10/27 0:07:24`。
-- 1.4.0 已构建，但**尚未替换现场运行程序**。生产目录没有 `nx-host.exe`，当前没有 `nx-host` 进程，因此生产 1.3.1 不能提供完整 NX 数据面。
-- `%LOCALAPPDATA%\NightDesk\recovery.json` **仍存在**（352 字节，最后写入 `2026/10/27 00:10:30`）。
+- 2026-10-27 06:16 KST 只读检查：没有 `NightDesk` 或 `nx-host` 进程。
+- `C:\Users\pixel\Desktop\NightDesk.exe` 仍是修复前的 1.4.0 候选（`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`），同目录已有 sidecar。该旧文件会复现启动错误，不得启动或部署。
+- `%LOCALAPPDATA%\NightDesk\recovery.json` 检查时**不存在**；这不等于显示拓扑安全，仍需独立复核。
 - 上次只读诊断：唯一活动源为 `\\.\DISPLAY6`（Parsec VDD）；不能据此认定物理输出已经安全恢复。
 - 在物理显示器恢复且恢复快照可安全验证之前，禁止：
-  - 退出、重启或替换 PID 13816；
+  - 启动 Desktop 中修复前的旧候选，或执行真实抓屏/SendInput 验收；
   - 执行熄屏、点亮、恢复快照；
   - 添加或删除 VDD 显示；
   - 卸载或重装显示驱动；
@@ -94,7 +94,7 @@ $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 & $dotnet build 'C:\dev\NightDesk\src\NightDesk\NightDesk.csproj' -c Release --no-restore
 ```
 
-- 当前输出：`176 tests passed. No display state changed.`
+- 当前输出：`177 tests passed. No display state changed.`
 - 构建：`0 个警告 / 0 个错误`。
 - Windows 1.4.0 两个 EXE 的大小、SHA-256 与 ProductVersion 已复核；发布脚本和 `nx-host.exe -version` 冒烟检查通过。
 - Android stage 5 JVM/仪器测试和 APK 哈希来自 AI 验证目录 `/home/tony/dev/nightdesk-android-stage5`。

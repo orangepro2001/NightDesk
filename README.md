@@ -4,15 +4,15 @@
 
 ## 当前交付状态（2026-10-27）
 
-- 当前代码基线：`fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`（阶段 7：安全端到端探针）。
-- Windows **1.4.0 候选**已通过 **176 项 Release 测试**，Release 构建 0 警告 / 0 错误。发布目录 `C:\dev\NightDesk\artifacts\win-x64-1.4.0` 必须同时包含：
-  - `NightDesk.exe`：`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`。
+- 当前代码基线：`090b5c1ecd7803ba717b97b378c37206ef36fdd1`（Windows XAML 启动修复；含阶段 7 安全端到端探针）。
+- Windows **1.4.0 候选**已通过 **177 项 Release 测试**，Release 构建 0 警告 / 0 错误。发布目录 `C:\dev\NightDesk\artifacts\win-x64-1.4.0` 必须同时包含：
+  - `NightDesk.exe`：`201832196` 字节，SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`，ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`。
   - `nx-host.exe`：`7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 输出 `nx-host 0.2.0`。
 - 发布必须使用 `tools\publish-windows.ps1`；脚本使用全新 staging 目录并断言两份文件都存在。只复制 `NightDesk.exe` 会导致 NX 远控不可用。
 - 阶段 7 新增 `nx-probe.exe` 与 `tools\test-nx-probe.ps1`：用与 Android 相同的 pinned TLS / 配对 / QUIC / tile 解码路径，在合成源上安全验收首帧、动态帧、tile 差分和 7/7 输入回执，不抓屏、不调用 SendInput。详见 `docs/20261027-041844-remote-control-stage-7-safe-e2e-probe-handoff.md`。
 - 1.4.0 仍将官方 Parsec VDD 安装器内嵌在单文件 EXE 中。启动时未检测到 VDD 设备接口，会在用户授权 UAC 后自动安装；已安装时绝不重装或替换驱动。
-- **生产现场**：PID **13816** 仍是 **1.3.1**（`C:\Users\pixel\Desktop\NightDesk.exe`），生产目录**没有** `nx-host.exe`，当前也没有 `nx-host` 进程。因此当前生产版本不能提供完整 NX 数据面；1.4.0 尚未部署。
-- `%LOCALAPPDATA%\NightDesk\recovery.json` 仍存在；最近只读诊断显示唯一活动源为 `\\.\DISPLAY6`（Parsec VDD），没有活动物理输出。**在物理显示器可恢复、快照可验证之前，不要退出/重启 NightDesk，也不要执行熄屏、点亮、恢复快照或 VDD 增删。**
+- **当前本机状态**（2026-10-27 06:16 KST 只读检查）：没有 `NightDesk` 或 `nx-host` 进程。`C:\Users\pixel\Desktop\NightDesk.exe` 仍是**修复前**的 1.4.0 候选（`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`），同目录有 `nx-host.exe`。该旧 EXE 会复现截图中的 XAML 启动错误，**不要启动或部署**；应改用本轮修复后并已冒烟通过的 artifacts 候选。
+- `%LOCALAPPDATA%\NightDesk\recovery.json` 在 2026-10-27 06:16 KST 检查时**不存在**；这不能证明显示拓扑已经安全。最近一次只读诊断仍只确认 `\\.\DISPLAY6`（Parsec VDD），没有确认活动物理输出。在独立复核物理输出、DPI 和 VDD 之前，不要执行熄屏、点亮、恢复快照或 VDD 增删，也不要运行真实抓屏/SendInput 验收。
 - Android **1.0.4**（versionCode 5）已发布到 AI 更新源，支持最多 20 台主机的保存、切换和删除：`C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`。
 - Android **1.1.0 阶段 5 候选**（versionCode 7，未发布）：新增 go-nx 固定证书 tile 查看器、触摸/滚轮/键盘/Unicode 输入、连接状态机、超时与重试、后台释放输入。产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，大小 `55058900`，SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`。已完成 26 项 JVM 单测、4 项仪器测试和模拟器冒烟；**真实 Windows 抓屏、SendInput、真机 tailnet 尚未验收**。
 
@@ -112,7 +112,7 @@ $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\dev\NightDesk\tools\publish-windows.ps1'
 ```
 
-测试入口是无额外 NuGet 测试框架的可执行断言程序，**用 dotnet run，不是 dotnet test**。当前 176 项通过；测试使用合成数据和隔离回调，不改显示配置，也不启用 Tailscale。
+测试入口是无额外 NuGet 测试框架的可执行断言程序，**用 dotnet run，不是 dotnet test**。当前 177 项通过；测试使用合成数据和隔离回调，不改显示配置，也不启用 Tailscale。
 
 Android 构建与发布、更新源运维、签名密钥保管和已知限制见 `docs\HANDOFF.md`。
 
@@ -121,5 +121,6 @@ Android 构建与发布、更新源运维、签名密钥保管和已知限制见
 - 架构、API、配对、多主机与安卓交接：[C:\dev\NightDesk\docs\HANDOFF.md](C:/dev/NightDesk/docs/HANDOFF.md)
 - go-nx 集成可行性：[C:\dev\NightDesk\docs\20261027-003801-go-nx-remote-control-integration-plan.md](C:/dev/NightDesk/docs/20261027-003801-go-nx-remote-control-integration-plan.md)
 - 阶段 5 连接生命周期与恢复：[C:\dev\NightDesk\docs\20261027-033356-remote-control-stage-5-lifecycle-handoff.md](C:/dev/NightDesk/docs/20261027-033356-remote-control-stage-5-lifecycle-handoff.md)
+- Windows XAML 启动崩溃修复与产物验收：[C:\dev\NightDesk\docs\20261027-061608-windows-xaml-startup-fix-handoff.md](C:/dev/NightDesk/docs/20261027-061608-windows-xaml-startup-fix-handoff.md)
 - 人工验收：[C:\dev\NightDesk\docs\ACCEPTANCE.md](C:/dev/NightDesk/docs/ACCEPTANCE.md)
 - 第三方说明：[C:\dev\NightDesk\docs\THIRD-PARTY-NOTICES.txt](C:/dev/NightDesk/docs/THIRD-PARTY-NOTICES.txt)

@@ -8,11 +8,11 @@
 
 | 项目 | 状态 |
 |---|---|
-| 代码基线 | `fff73bb2b823f52f86f8807a9f0a59c6e3283ebd` |
+| 代码基线 | `090b5c1ecd7803ba717b97b378c37206ef36fdd1` |
 | Windows 候选目录 | `C:\dev\NightDesk\artifacts\win-x64-1.4.0`，必须同时包含 `NightDesk.exe` 与 `nx-host.exe` |
-| Windows `NightDesk.exe` | `201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd` |
+| Windows `NightDesk.exe` | `201832196` 字节，SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`，ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1` |
 | Windows `nx-host.exe` | `7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 为 `nx-host 0.2.0` |
-| 运行中程序 | PID **13816**，ProductVersion **1.3.1**，`C:\Users\pixel\Desktop\NightDesk.exe`；生产目录缺少 `nx-host.exe`，不能提供完整 NX 数据面 |
+| 当前进程 | 2026-10-27 06:16 KST 检查：无 `NightDesk` / `nx-host` 进程 |
 | Android 已发布版本 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，versionCode **5** / versionName **1.0.4** |
 | Android 已发布大小 / SHA-256 | `6991035` 字节 / `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436` |
 | Android 阶段 5 候选 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，versionCode **7** / versionName **1.1.0**，**未发布** |
@@ -35,7 +35,7 @@
 
 | 检查 | 结果 | 说明 |
 |---|---|---|
-| Windows Release 测试 | **176 项通过** | 输出 `176 tests passed. No display state changed.`；测试未创建、删除或切换显示器 |
+| Windows Release 测试 | **177 项通过** | 输出 `177 tests passed. No display state changed.`；测试未创建、删除或切换显示器 |
 | Windows Release 构建 | **通过** | `0 个警告 / 0 个错误` |
 | VDD 载荷测试 | **通过** | 确认 EmbeddedResource 存在、可提取、大小与 SHA-256 正确、签名主体为 `Parsec Cloud, Inc.`；篡改与缺失载荷均被拒绝 |
 | Windows 发布完整性 | **通过** | `tools\publish-windows.ps1` 从全新 staging 目录发布，断言 `NightDesk.exe` 与 `nx-host.exe` 同时存在，并通过 `nx-host 0.2.0 -version` 冒烟检查 |
@@ -85,11 +85,11 @@ adb -s emulator-5580 shell am instrument -w \
 - `nx-probe` 合成源端到端：4 帧、538 tile 更新、动态摘要、7/7 输入回执，全程不抓屏、不调用 SendInput。
 - `NxConnectionTest` 10 项：连接成功、超时、错误分类、重试、旧 attempt 隔离、后台、断开、持久化时机等。
 - `NxTest` 7 项：NX 二维码载荷解析、地址/指纹校验等。
-- Windows 176 项测试覆盖 NX 配对载荷、Tailscale 地址校验、sidecar 状态清理、VDD 载荷校验、显示快照等不触碰显示拓扑的逻辑。
+- Windows 177 项测试覆盖 NX 配对载荷、Tailscale 地址校验、sidecar 状态清理、VDD 载荷校验、显示快照等不触碰显示拓扑的逻辑。
 
 ### 3.3 尚未验收（硬阻塞）
 
-以下项目**必须在独立 Windows 测试机 + Android 真机上执行**，不能使用本机 PID 13816 的生产桌面：
+以下项目**必须在独立 Windows 测试机 + Android 真机上执行**，不能使用本机生产桌面：
 
 - [ ] 真实 GDI 抓屏首帧、tile 差分、画面完整性与长期稳定性。
 - [ ] 真实 `SendInput`：鼠标移动/点击、滚轮、Unicode、组合键、修饰键释放。
@@ -171,8 +171,9 @@ adb -s emulator-5580 shell am instrument -w \
 
 ## 6. 当前桌面现场安全状态
 
-- 运行中的仍是 PID **13816 / 1.3.1**；生产目录没有 `nx-host.exe`，当前没有 `nx-host` 进程。不得强杀、退出或直接替换。
-- `%LOCALAPPDATA%\NightDesk\recovery.json` 仍存在（352 字节，最后写入 `2026/10/27 00:10:30`）。
+- 06:16 KST 只读检查：当前没有 `NightDesk` / `nx-host` 进程。
+- `C:\Users\pixel\Desktop\NightDesk.exe` 是修复前的 1.4.0 候选（`201832196` 字节，旧 SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`），同目录已有 sidecar；该文件会复现 XAML 启动错误，不得启动或部署。
+- `%LOCALAPPDATA%\NightDesk\recovery.json` 检查时不存在；这不能证明显示拓扑安全。
 - 最近只读诊断显示唯一活动源为 `\\.\DISPLAY6`（Parsec VDD），没有确认安全的物理输出。
 - 因此本轮**没有**执行 `off` / `on` / `toggle` / `add` / `remove` / `restore`，没有修改显示拓扑、没有卸载/重装 VDD，也没有重启桌面进程，更没有在生产桌面运行真实 `nx-host.exe` 抓屏或 SendInput。
 - 1.4.0 和阶段 5 APK 只保留在 artifacts，必须等物理显示恢复、快照可验证后，再按交接文档受控部署；部署 1.4.0 时两个 EXE 必须同目录。
@@ -257,7 +258,7 @@ adb -s emulator-5580 shell am instrument -w \
 
 - Android 1.0.4 已实现多主机、扫码绑定、永久设备令牌、独立更新源，并完成远端构建与仪器测试；物理真机联调仍需人工验收。
 - Android 1.1.0 阶段 5 候选已构建并通过 26 项 JVM 单测、4 项仪器测试和模拟器冒烟，但**未发布**；真实 Windows 抓屏、SendInput 和真机 tailnet **未验收**。
-- Windows 1.4.0 已构建、测试并携带 VDD 安装器与 `nx-host.exe`，但**尚未替换生产中的 1.3.1**。生产目录缺少 sidecar，不能把当前生产版本视为完整 NX 发布。
+- Windows 1.4.0 修复候选已构建、测试并完成启动冒烟。`Desktop\NightDesk.exe` 仍是修复前旧候选，尚未替换；部署时必须把修复后的 `NightDesk.exe` 与 `nx-host.exe` 一起复制到同一目录。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
 - go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不是通用远程桌面，不等同于 Sunshine/Parsec 视频串流。
 - 应用不提供任意 shell、文件访问或通用桌面控制接口。

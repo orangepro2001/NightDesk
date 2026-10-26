@@ -1,8 +1,8 @@
 # NightDesk implementation plan
 
 更新时间：2026-10-27（Asia/Seoul）
-当前代码基线：`fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`
-最新交接：`docs/20261027-041844-remote-control-stage-7-safe-e2e-probe-handoff.md`
+当前代码基线：`090b5c1ecd7803ba717b97b378c37206ef36fdd1`
+最新交接：`docs/20261027-061608-windows-xaml-startup-fix-handoff.md`
 
 ## Scope / assumptions
 
@@ -36,7 +36,7 @@
 
 ## Verification
 
-- Windows Release tests: **176 passed**, output `176 tests passed. No display state changed.`
+- Windows Release tests: **177 passed**, output `177 tests passed. No display state changed.`
 - Windows Release build: **0 warnings / 0 errors**.
 - Windows publish: `tools\publish-windows.ps1` publishes into fresh staging, requires both `NightDesk.exe` and `nx-host.exe`, and checks `nx-host.exe -version`.
 - go-nx Linux/Windows: `gofmt` on touched files, `go vet`, `go test` and Windows cross-build pass; 8 cross-compiled test binaries pass on Windows.
@@ -49,14 +49,14 @@
 ## Current artifact facts
 
 - Windows candidate: `artifacts\win-x64-1.4.0`.
-  - `NightDesk.exe`: `201832196` bytes, SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`, ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`.
+  - `NightDesk.exe`: `201832196` bytes, SHA-256 `C2A7944FE0661350895DA12C3F712F1E40B46AAFFF73738C1B639F7F3138B67C`, ProductVersion `1.4.0+090b5c1ecd7803ba717b97b378c37206ef36fdd1`.
   - `nx-host.exe`: `7938048` bytes, SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`, version `nx-host 0.2.0`.
 - Android stage 5 candidate: `artifacts\android\nightdesk-1.1.0-stage5.apk`, `55058900` bytes, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`; not published.
 - Live Android feed remains versionCode 5 / 1.0.4.
 
 ## Tracked issues / safety gate
 
-- Production process is PID **13816**, ProductVersion **1.3.1**, `C:\Users\pixel\Desktop\NightDesk.exe`; its directory has no `nx-host.exe`.
-- `C:\Users\pixel\AppData\Local\NightDesk\recovery.json` still exists; the last read-only diagnostic showed only `\\.\DISPLAY6` (Parsec VDD).
-- Do not exit, restart or replace PID 13816; do not toggle displays, restore a snapshot, add/remove a VDD, install/uninstall a display driver, or run real capture/SendInput on the production desktop until recovery is independently verified.
+- At the 2026-10-27 06:16 KST check, no NightDesk process was running. `C:\Users\pixel\Desktop\NightDesk.exe` is the pre-fix 1.4.0 candidate (old SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`); do not launch it.
+- `C:\Users\pixel\AppData\Local\NightDesk\recovery.json` was absent; the last read-only diagnostic still showed only `\\.\DISPLAY6` (Parsec VDD). Absence is not proof that display topology is safe.
+- Do not toggle displays, restore a snapshot, add/remove a VDD, install/uninstall a display driver, or run real capture/SendInput on the production desktop until recovery is independently verified.
 - `docs/HANDOFF.md` safety instructions override older plan records.
