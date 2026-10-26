@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.text.InputType
 import android.view.Gravity
 import android.view.MotionEvent
@@ -28,12 +30,18 @@ class RemoteActivity : ComponentActivity() {
     private lateinit var store: NxProfileStore
     private lateinit var screen: RemoteScreenView
     private lateinit var status: TextView
+    private lateinit var retryButton: Button
+    private lateinit var pairButton: Button
     private lateinit var host: NxHost
-    private var session: mobile.Session? = null
-    private var generation = 0
+    private val connectionState = NxConnectionModel()
+    @Volatile private var session: mobile.Session? = null
+    @Volatile private var generation = 0L
     @Volatile private var destroyed = false
     @Volatile private var lastFrameWidth = 0
     @Volatile private var lastFrameHeight = 0
+    private var persistedFrameWidth = -1
+    private var persistedFrameHeight = -1
+    private val timeoutHandler = Handler(Looper.getMainLooper())
     private var currentCode = ""
     private var pairingDialogShowing = false
 
@@ -99,6 +107,10 @@ class RemoteActivity : ComponentActivity() {
             setPadding(dp(8), 0, dp(8), 0)
         }
         top.addView(status, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        retryButton = overlayButton("重试") { retryConnection() }.apply { visibility = View.GONE }
+        pairButton = overlayButton("配对码") { showPairingCodeDialog() }.apply { visibility = View.GONE }
+        top.addView(retryButton)
+        top.addView(pairButton)
         top.addView(overlayButton("按键") { showKeyMenu(it) })
         top.addView(overlayButton("键盘") { showTextDialog() })
         top.addView(overlayButton("右键") { rightClick() })
@@ -123,10 +135,22 @@ class RemoteActivity : ComponentActivity() {
     }
 
     private fun connect(pairingCode: String) {
-        stopSession(clearStatus = false)
-        val request = ++generation
-        status.text = "正在连接 ${host.addr}…"
-        screen.clear()
+        val request = connectionState.begin(pairingCode.isNotBlank())
+        generation = request
+        persistedFrameWidth = -1
+        persistedFrameHeight = -1
+        closeTransport(clearScreen = true)
+        timeoutHandler.removeCallbacksAndMessages(null)
+        renderConnection()
+        timeoutHandler.postDelayed({
+            if (!destroyed && request == generation && connectionState.timeout(request)) {
+                // Invalidate callbacks from a handshake that exceeded our UI deadline. NewSession
+                // still has its own 15 s Go timeout; if it returns later, its handle is closed.
+                generation++
+                closeTransport(clearScreen = false)
+                renderConnection()
+            }
+        }, NxConnectionModel.DefaultTimeoutMillis + 500)
         io.execute {
             try {
                 val identityDir = File(filesDir, "nx-identity").apply { mkdirs() }
@@ -146,22 +170,34 @@ class RemoteActivity : ComponentActivity() {
                 }
                 if (!keep) runCatching { opened.close() }
             } catch (e: Exception) {
-                ui(request) { status.text = friendlyError(e.message ?: "连接失败") }
+                ui(request) {
+                    connectionState.error(request, "disconnected", e.message.orEmpty())
+                    renderConnection()
+                }
             }
         }
     }
 
-    private inner class Callback(private val request: Int) : mobile.Callback {
+    private inner class Callback(private val request: Long) : mobile.Callback {
         override fun onState(state: String) {
             ui(request) {
                 when (state) {
-                    mobile.Mobile.StateConnecting -> status.text = "正在建立 QUIC + TLS 1.3…"
+                    mobile.Mobile.StateConnecting -> {
+                        connectionState.state(request, state)
+                        renderConnection()
+                    }
                     mobile.Mobile.StateStreaming -> {
+                        connectionState.streaming(request)
                         currentCode = ""
-                        status.text = "已连接 · 拖动鼠标，双指滚动"
+                        timeoutHandler.removeCallbacksAndMessages(null)
+                        renderConnection()
                         persistConnected()
                     }
-                    mobile.Mobile.StateClosed -> status.text = "连接已断开"
+                    mobile.Mobile.StateClosed -> {
+                        connectionState.closed(request)
+                        closeTransport(clearScreen = false)
+                        renderConnection()
+                    }
                 }
             }
         }
@@ -190,24 +226,34 @@ class RemoteActivity : ComponentActivity() {
 
         override fun onError(code: String, message: String) {
             ui(request) {
-                status.text = friendlyError(code)
-                if (code == "bad-code" || code == "untrusted") showPairingCodeDialog()
+                connectionState.error(request, code, message)
+                val snapshot = connectionState.snapshot()
+                if (snapshot.canPairAgain) {
+                    currentCode = ""
+                    renderConnection()
+                    showPairingCodeDialog()
+                } else {
+                    renderConnection()
+                }
             }
         }
     }
 
-    private fun active(request: Int) = !destroyed && request == generation
+    private fun active(request: Long) = !destroyed && request == generation
 
-    private fun ui(request: Int, block: () -> Unit) {
+    private fun ui(request: Long, block: () -> Unit) {
         runOnUiThread {
             if (!destroyed && request == generation) block()
         }
     }
 
     private fun persistConnected() {
-        val width = lastFrameWidth
-        val height = lastFrameHeight
+        val width = lastFrameWidth.takeIf { it > 0 } ?: host.width
+        val height = lastFrameHeight.takeIf { it > 0 } ?: host.height
         if (width <= 0 || height <= 0) return
+        if (width == persistedFrameWidth && height == persistedFrameHeight) return
+        persistedFrameWidth = width
+        persistedFrameHeight = height
         io.execute { runCatching { store.markConnected(host.id, width, height) } }
     }
 
@@ -218,7 +264,30 @@ class RemoteActivity : ComponentActivity() {
         "locked" -> "错误配对次数过多，请稍后重试"
         "replaced" -> "另一台设备接管了此会话"
         "identity" -> "无法读取本机客户端身份"
+        "timeout" -> "连接超时，请检查 Tailscale 和 Windows 主机后重试"
+        "disconnected", "link-error" -> "连接已断开，可点击“重试”"
         else -> if (code.length <= 160) code else "连接失败"
+    }
+
+    private fun renderConnection() {
+        if (!::status.isInitialized) return
+        val snapshot = connectionState.snapshot()
+        status.text = when (snapshot.phase) {
+            NxConnectionPhase.Connecting ->
+                if (snapshot.pairingCodeProvided) "正在使用短期配对码连接 ${host.addr}…"
+                else "正在连接 ${host.addr}…"
+            NxConnectionPhase.Streaming -> "已连接 · 拖动鼠标，双指滚动"
+            NxConnectionPhase.Disconnected -> "连接已断开，可点击“重试”"
+            NxConnectionPhase.Background -> "已暂停：连接和按键已释放，返回后点击“重试”"
+            NxConnectionPhase.Failed -> snapshot.failure?.let { friendlyError(it.code) } ?: "连接失败"
+        }
+        retryButton.visibility = if (snapshot.canRetry) View.VISIBLE else View.GONE
+        pairButton.visibility = if (snapshot.canPairAgain) View.VISIBLE else View.GONE
+    }
+
+    private fun retryConnection() {
+        if (!connectionState.snapshot().canRetry) return
+        connect(currentCode)
     }
 
     private fun showPairingCodeDialog() {
@@ -428,20 +497,24 @@ class RemoteActivity : ComponentActivity() {
         io.execute { runCatching { active.releaseAll() } }
     }
 
-    private fun stopSession(clearStatus: Boolean = true) {
-        generation++
+    private fun closeTransport(clearScreen: Boolean) {
         val previous = session
         session = null
         leftDown = false
         scrolling = false
-        screen.clear()
-        if (clearStatus) status.text = "已断开"
+        primaryPointer = MotionEvent.INVALID_POINTER_ID
+        if (clearScreen) screen.clear()
         io.execute {
             previous?.let {
                 runCatching { it.releaseAll() }
                 runCatching { it.close() }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (::status.isInitialized) renderConnection()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -454,23 +527,26 @@ class RemoteActivity : ComponentActivity() {
     }
 
     override fun onStop() {
-        stopSession(clearStatus = false)
+        timeoutHandler.removeCallbacksAndMessages(null)
+        val attempt = connectionState.snapshot().attempt
+        if (attempt > 0 && connectionState.background(attempt)) {
+            // Invalidate every late Go callback and release held mouse buttons/keys before the
+            // activity leaves the foreground. Resuming requires an explicit user retry.
+            generation++
+            closeTransport(clearScreen = true)
+            renderConnection()
+        }
         super.onStop()
     }
 
     override fun onDestroy() {
+        timeoutHandler.removeCallbacksAndMessages(null)
+        val attempt = connectionState.snapshot().attempt
+        if (attempt > 0) connectionState.background(attempt)
         destroyed = true
         generation++
-        val previous = session
-        session = null
-        io.execute {
-            previous?.let {
-                runCatching { it.releaseAll() }
-                runCatching { it.close() }
-            }
-        }
+        closeTransport(clearScreen = true)
         io.shutdown()
-        screen.clear()
         super.onDestroy()
     }
 
