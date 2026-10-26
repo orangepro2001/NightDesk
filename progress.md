@@ -1,116 +1,48 @@
 # NightDesk progress
 
-更新时间：2026-10-27（Asia/Seoul）
+更新时间：2026-10-27 08:09 KST（Asia/Seoul）
+最新恢复入口：docs/20261027-080919-paginated-ui-desktop-update-1.6.0-handoff.md
 
 ## 当前交付状态
 
-### Windows 桌面端
+- 实现提交：`93147b357a9b8497cd2be4c67d3af99668279724`。
+- Windows 1.6.0 / 10600，ZIP 已在 AI 发布；当前生产桌面未被本轮替换。
+- 本地 Windows：`C:\dev\NightDesk\artifacts\win-x64-1.6.0`；NightDesk.exe 201922308 字节，SHA-256 `d5c1c09832ad80d638fe27af9e68c41b8ff4e4dd0b5dcb89faabc2559be72e5d`。
+- Windows ZIP：85183345 字节，SHA-256 `de162ec69f0f9c9d2e855fc7a084b1c316b4d78284be5b131fd393ec461004cb`。
+- nx-host.exe 0.2.0 未改变，7938048 字节，SHA-256 `17b420ce531270e28bef58d42dd68f5c13cac6c5fe4cbfd4fdbb20051ad35e3`。
+- Android 1.2.0 / 8，55058900 字节，SHA-256 `82136d2992ff30c3bf84a5d45a02bc04bda4d38203880193883abb747100c52f`，AI 不可变文件 nightdesk-8.apk。
+- Android 发布证书保持 `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`。
 
-- 代码基线：`d720ce2eb18a793b348c3be209d9dedc095bc79d`
-- 候选版本：**1.5.0**
-- 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.5.0`
-- `NightDesk.exe`：`201885444` 字节，SHA-256 `50C71DADC8C1E425026CDC38C64DFEBE971E834B3E2DEE94F695F7E056EBD626`，ProductVersion `1.5.0+d720ce2eb18a793b348c3be209d9dedc095bc79d`。
-- `nx-host.exe`：`7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 为 `nx-host 0.2.0`。
-- 两个 EXE 必须同目录部署；sidecar 被明确排除在 single-file 包之外。
-- 发布必须使用 `tools\publish-windows.ps1`。脚本发布到全新 staging 目录，断言两份文件存在并运行 sidecar 冒烟检查。
-- Release 测试：**203 项通过，未改变显示状态**
-- Release 构建：**0 警告 / 0 错误**
-- 已实现：熄屏/点亮、Parsec VDD 增删与分辨率/刷新率配置、防休眠、可修改全局快捷键、Tailscale HTTPS 远程控制、扫码配对、永久设备令牌、受信任设备管理、统一程序图标，以及 Windows 桌面控制 Windows。
-- 1.5.0 已把官方 Parsec VDD 安装器作为 EmbeddedResource 打入单文件 EXE。启动检测不到 VDD 时，验证载荷后以 UAC + `/S` 自动安装；每个用户环境自动尝试一次，失败后可从 UI 手动重试。驱动已安装时绝不重装或替换。
-- go-nx 远程数据面（阶段 1-7）已接入：
-  - Windows 启动受 Job Object 监控的 `nx-host.exe` sidecar；
-  - sidecar 采集单个显示器，发送 64×64 tile 差分；
-  - 使用 QUIC + TLS 1.3、证书固定和 6 位短期配对码；
-  - WPF 通过 stdin/stdout JSON 行协议管理 sidecar；
-  - sidecar 异常退出后清除陈旧的 running/ready 状态；
-  - 它支持静态桌面和轻量交互，不是 H.264/HEVC/AV1 视频串流。
-- Windows 桌面控制 Windows（1.5.0）：
-  - 第 06 区输入目标地址、6 位配对码和可选主机证书指纹；
-  - `NxViewerSession` 使用 System.Net.Quic + TLS 1.3，固定目标指纹并持久化 Viewer 客户端身份；
-  - `NxViewerWindow` 用 WriteableBitmap 渲染 BGRA tile，转发鼠标、滚轮、快捷键和 Unicode；
-  - 失焦/关闭释放远端输入；配对码不落盘；
-  - 真实 `nx-host.exe -test-mode` 验证错误码、首帧、下一帧、输入回执和 pin；
-  - 实际控制窗口以合成画面完成渲染冒烟；
-  - 依赖 System.Net.Quic，当前要求 Windows 11 / Server 2022 或更新版本。
-- 阶段 7 安全端到端验收：
-  - `nx-host.exe` 新增 `-test-mode`，必须同时指定 `-source pattern -inject log`，否则退出码 2；
-  - 使用合成 1920×1080 动态源和日志输入，不抓屏、不调用 SendInput、不读写生产 trust store；
-  - `nx-probe.exe` 走与 Android 相同的 pinned TLS、配对、QUIC 和 tile 解码路径；
-  - 对发布版 `nx-host.exe` 实测：4 帧、538 tile 更新、7/7 输入回执、首末帧摘要不同、host 退出码 0；
-  - Go Linux/Windows `vet`、`test`、交叉构建通过，8 个 Windows 测试二进制全部 PASS。
-- 尚未验收：真实 GDI 抓屏、真实 SendInput/DPI 映射/UAC 安全桌面、Windows 双机 tailnet UDP/QUIC、显示热插拔、Android 真机 tailnet、长时稳定性和资源占用。
+## 本轮完成
 
-### Android 客户端
+- 修复 WPF Grid.Column 缺失导致的文字/输入框重叠。
+- Windows 五分页：概览、显示、远程访问、控制桌面、更新与诊断。
+- Android 四页底部导航：首页、显示、远控、更新；系统栏 inset、页状态恢复和独立更新反馈。
+- Windows 启动/6 小时自动检查并下载 ZIP，校验包和双 EXE；用户确认后等待正常退出再替换，保存备份。
+- AI 双平台分发和原子 manifest；Windows 1.6.0、Android 1.2.0 上线。
 
-- 已发布版本：**1.1.0**（versionCode **7**）
-- 本地产物：`C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`
-- AI 不可变文件：`nightdesk-7.apk`；别名：`nightdesk-1.1.0.apk`
-- 大小：`55058900` 字节
-- SHA-256：`01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`
-- 签名证书 SHA-256：`41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`
-- 已发布到 AI 更新源；发布前清单备份为 `manifest.json.bak-20261027-062447`。
-- 已实现多主机：最多保存 20 台主机，可按 Tailscale origin 去重、切换和删除；配置 schemaVersion 3，兼容旧单主机格式迁移；Android Keystore AES-GCM 加密，令牌不以明文落盘。
-- 1.1.0 新增：
-  - go-nx 固定证书 tile 查看器；
-  - 触摸、滚轮、键盘和 Unicode 输入；
-  - `NxConnectionModel` 显式连接状态机；
-  - 20 秒前端截止时间和用户可见的超时错误；
-  - 失败后的“重试 / 配对码 / 重新扫码”恢复动作；
-  - 后台、Activity 销毁、断线时释放鼠标/滚轮/按键；
-  - 旧 attempt 回调隔离，避免旧错误覆盖新连接；
-  - 成功连接后才持久化屏幕尺寸。
-- 上一发布版本：1.0.4（versionCode 5），产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`；保留用于回滚参考。
-- Debug APK：`artifacts\android\nightdesk-1.1.0-stage5-debug.apk`，`56886382` 字节，SHA-256 `042c9d37dffa86c7507ee8ab358415d46eb921cd55700328e8ef393034fc08aa`。
-- AndroidTest APK：`artifacts\android\nightdesk-1.1.0-stage5-androidTest.apk`，`689645` 字节，SHA-256 `f9d11858d818aaa073f39fc404ea716af5043c2f6093bc0454b8ef52da1b4c36`。
-- Android 验证：
-  - JVM 单测：`CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed`；
-  - 仪器测试：`HostStoreInstrumentedTest: OK (3 tests)` + `UpdateFlowInstrumentedTest: OK (1 test)`；
-  - 发布后线上更新源复测：`OK (4 tests)`；
-  - Lint/Release 构建：`0 errors / 22 warnings`；
-  - 模拟器 UI 冒烟：`artifacts\android\stage5-home.png`、`artifacts\android\stage5-offline-timeout.png`。
-- 尚未验收：真实 Android 物理真机、真机 tailnet UDP/QUIC、真实 Windows GDI 抓屏、`SendInput`、DPI/UAC 安全桌面、长时稳定性和资源占用。
-### AI 更新源
+## 验证
 
-- 主机：SSH alias `AI`
-- 服务：`nightdesk-update-feed.service`，`active` / `enabled`
-- 监听：`127.0.0.1:17768`
-- 健康检查：`http://127.0.0.1:17768/healthz` 返回 `ok`
-- Tailnet 地址：
-  - 下载页：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk`
-  - 最新 APK：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk`
-  - 更新清单：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update`
-- 线上为 versionCode **7** / 1.1.0；`latest.apk`、版本下载、清单、大小、SHA-256 和签名均已复核。
+- Windows：210 tests passed. No display state changed. 串行 Release build 0 warnings / 0 errors。
+- WPF：纯 XAML 渲染 980/1180 DIP × 5 页通过，NX host/viewer 两组三字段的列和边界互不重叠。
+- 安装器：实际 helper 在隔离临时目录等待自有测试进程、替换双合成文件、保留备份、重启合成 WinExe；未安装生产程序。
+- 真实 Windows 下载器：临时缓存 + 旧版本比较值，HTTPS 下载当前 ZIP，校验包和双 EXE，解包 ready 成功；未调用安装。
+- Android：27 JVM tests，lint 0 errors / 22 warnings；HostStore 3 + MainUi 1 + UpdateFlow 1 = 5 instrumented tests。发布后 UpdateFlow 另跑 1 项通过。
+- Feed：5 Python tests；双平台 HTTPS manifest/HEAD 200；本地/AI/线上大小和哈希一致。
+- 服务 active / enabled，healthz = ok android=ok windows=ok；其它 Serve 路由和 Funnel 状态未改变。
 
-## 现场安全状态（必须保持）
+## 安全与剩余验收
 
-- 2026-10-27 06:47 KST 只读检查：Desktop 的 `NightDesk.exe` PID 28504 正在运行；`nx-host.exe` PID 4444 正以 `100.109.77.29:7000`、`primary`、10 FPS 和正式状态目录监听。不要强杀、不要启动第二个正式 host、不要做真实抓屏/SendInput 验收。
-- `%LOCALAPPDATA%\NightDesk\recovery.json` 在 06:34 KST 存在（351 字节）；显示快照尚未安全验收，仍需独立复核物理输出、DPI 和 VDD。
-- 上次只读诊断：唯一活动源为 `\\.\DISPLAY6`（Parsec VDD）；不能据此认定物理输出已经安全恢复。
-- 在物理显示器恢复且恢复快照可安全验证之前，禁止：
-  - 再启动一个 Desktop 旧候选、强杀 PID 28504，或执行真实抓屏/SendInput 验收；
-  - 执行熄屏、点亮、恢复快照；
-  - 添加或删除 VDD 显示；
-  - 卸载或重装显示驱动；
-  - 在生产桌面启动第二个真实 `nx-host.exe` 或做抓屏/SendInput。
-- 本轮只运行了不触碰显示拓扑的 Windows Release 测试，以及只读进程/文件检查。
+- 2026-10-27 08:07 KST 只读：Desktop NightDesk PID 23116、正式 nx-host PID 20232；100.109.77.29:7000，primary / 10 FPS。
+- recovery.json 存在，352 字节，修改时间 07:03:42。PID 会变，不可据此强杀。
+- 没有替换 Desktop、没有强杀/重启正式进程、没有切屏/恢复/VDD 操作、没有真实 GDI/SendInput 验收。
+- 首次进入 1.6.0 仍须手动部署两个 EXE；先确认物理输出/快照恢复，再从旧版 UI 正常退出。后续更高版本自动下载，安装需确认。
+- Windows ZIP 未代码签名；SHA-256/HTTPS/tailnet ACL 不等同于独立签名；helper 不提权。
+- 真实双机 tailnet UDP/QUIC、GDI/SendInput、DPI/UAC、安全桌面、Android 物理真机、长期资源占用、生产自更新仍需验收。
 
-## 复核命令与结果
+## 恢复入口
 
-```powershell
-$dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
-& $dotnet run --project 'C:\dev\NightDesk\tests\NightDesk.Tests\NightDesk.Tests.csproj' -c Release --no-restore
-& $dotnet build 'C:\dev\NightDesk\src\NightDesk\NightDesk.csproj' -c Release --no-restore
-```
-
-- 当前输出：`203 tests passed. No display state changed.`
-- 构建：`0 个警告 / 0 个错误`。
-- Windows 1.5.0 两个 EXE 的大小、SHA-256 与 ProductVersion 已复核；发布脚本和 `nx-host.exe -version` 冒烟检查通过。桌面控制窗口已用合成主机完成实际渲染冒烟。
-- Android stage 5 JVM/仪器测试和 APK 哈希来自 AI 验证目录 `/home/tony/dev/nightdesk-android-stage5`。
-- 线上 manifest 为 versionCode 7 / 1.1.0；本地 APK、AI 不可变 APK 与 HTTPS 下载内容 SHA-256 完全一致。发布成功不等于真实 GDI/SendInput/真机 tailnet 验收通过。
-
-## 历史说明
-
-- 1.2.0 的现场进程来自此前的统一图标与远程控制归属修复；该进程保持运行。
-- 1.3.0 是 VDD 随包安装的中间构建，1.3.1 是当时生产构建；当前 Windows 交付候选为 1.5.0。
-- 阶段 4 完成了固定证书查看器和基础输入；阶段 5 完成了连接失败可见、可重试和生命周期收口；2026-10-27 已将 1.1.0 发布到 AI 更新源。
-- 旧版记录中的 PID 22708 / 115 项测试 / 1.2.0 已过期，以本文和 `docs/HANDOFF.md` 为准。
+- AI Android 构建目录：/home/tony/dev/nightdesk-android-1.2.0。
+- 服务目录：/home/tony/dev/nightdesk-update-feed。
+- 备份：server.py.bak-20261027-080511、manifest.json.pre-1.2.0-20261027-080511。
+- 不删除旧 APK/ZIP，不重建覆盖同一已发布版本；修复提高版本号。

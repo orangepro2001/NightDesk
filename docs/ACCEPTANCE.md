@@ -2,72 +2,42 @@
 
 更新日期：2026-10-27（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：Windows 1.5.0 桌面控制桌面、Android 1.1.0 发布与更新源验证、go-nx 远程控制阶段 7（安全端到端探针）、阶段 6 发布包完整性、阶段 5 Android 连接生命周期、`nx-host.exe` 0.2.0 sidecar、Android 多主机管理、Parsec VDD 随包安装，以及现场显示安全门禁。
+本轮范围：分页 UI、文字重叠修复、Windows 自动下载更新、AI 双平台分发；保留原显示/远控人工验收清单。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
-| 代码基线 | `d720ce2eb18a793b348c3be209d9dedc095bc79d`（Windows 1.5.0） |
-| Windows 候选目录 | `C:\dev\NightDesk\artifacts\win-x64-1.5.0`，必须同时包含 `NightDesk.exe` 与 `nx-host.exe` |
-| Windows `NightDesk.exe` | `201885444` 字节，SHA-256 `50C71DADC8C1E425026CDC38C64DFEBE971E834B3E2DEE94F695F7E056EBD626`，ProductVersion `1.5.0+d720ce2eb18a793b348c3be209d9dedc095bc79d` |
-| Windows `nx-host.exe` | `7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 为 `nx-host 0.2.0` |
-| 当前进程 | 2026-10-27 06:47 KST：Desktop `NightDesk.exe` PID 28504；`nx-host.exe` PID 4444 监听 `100.109.77.29:7000`，正式状态目录 |
-| Android 已发布版本 | **1.1.0**，versionCode **7**；本地产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，AI 不可变文件 `nightdesk-7.apk` |
-| Android 已发布大小 / SHA-256 | `55058900` 字节 / `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480` |
-| Android 上一发布版本 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，versionCode **5** / versionName **1.0.4**，保留用于回滚参考 |
-| Android 1.0.4 大小 / SHA-256 | `6991035` 字节 / `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436` |
-| Android 1.1.0 Debug APK | `artifacts\android\nightdesk-1.1.0-stage5-debug.apk`，`56886382` 字节，SHA-256 `042c9d37dffa86c7507ee8ab358415d46eb921cd55700328e8ef393034fc08aa` |
-| Android 1.1.0 AndroidTest APK | `artifacts\android\nightdesk-1.1.0-stage5-androidTest.apk`，`689645` 字节，SHA-256 `f9d11858d818aaa073f39fc404ea716af5043c2f6093bc0454b8ef52da1b4c36` |
-| Android 签名证书 SHA-256 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
-| AI 更新服务 | `nightdesk-update-feed.service` active / enabled；`/healthz` 返回 `ok`；线上为 versionCode **7** / 1.1.0 |
+| 实现提交 | `93147b357a9b8497cd2be4c67d3af99668279724` |
+| Windows | 1.6.0 / 10600，AI ZIP 已发布；生产桌面未替换 |
+| Windows ZIP | 85183345 字节，SHA-256 `de162ec69f0f9c9d2e855fc7a084b1c316b4d78284be5b131fd393ec461004cb` |
+| Windows EXE | 201922308 字节，SHA-256 `d5c1c09832ad80d638fe27af9e68c41b8ff4e4dd0b5dcb89faabc2559be72e5d` |
+| nx-host | 0.2.0，7938048 字节，SHA-256 `17b420ce531270e28bef58d42dd68f5c13cac6c5fe4cbfd4fdbb20051ad35e3` |
+| Android | 1.2.0 / 8，55058900 字节，SHA-256 `82136d2992ff30c3bf84a5d45a02bc04bda4d38203880193883abb747100c52f` |
+| Android 证书 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
+| 服务 | active / enabled；healthz = ok android=ok windows=ok |
 
-### 在线地址（仅 tailnet 内可访问）
+[双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk) · [Windows ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip) · [Android APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 
-- 下载页：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk`
-- 最新 APK：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk`
-- 更新清单：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update`
-- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=7`
-- 桌面控制页：`https://minipc-xoh4t.tail9f7f1f.ts.net/`
-
-未启用 Tailscale Funnel。访问边界由 tailnet ACL 控制。
+完整恢复说明见 `C:\dev\NightDesk\docs\20261027-080919-paginated-ui-desktop-update-1.6.0-handoff.md`。
 
 ## 2. 自动化结果（本轮已复核）
 
-| 检查 | 结果 | 说明 |
+| 检查 | 结果 | 边界 |
 |---|---|---|
-| Windows Release 测试 | **203 项通过** | 输出 `203 tests passed. No display state changed.`；测试未创建、删除或切换显示器 |
-| Windows Release 构建 | **通过** | `0 个警告 / 0 个错误` |
-| Windows 桌面控制 Viewer | **通过（合成链路）** | 使用真实 `nx-host.exe -test-mode -source pattern -inject log` 验证错误配对码、正确配对、1920×1080 首帧、ACK 后下一帧、输入回执和 pin 持久化；实际 `NxViewerWindow` 完成渲染冒烟 |
-| VDD 载荷测试 | **通过** | 确认 EmbeddedResource 存在、可提取、大小与 SHA-256 正确、签名主体为 `Parsec Cloud, Inc.`；篡改与缺失载荷均被拒绝 |
-| Windows 发布完整性 | **通过** | `tools\publish-windows.ps1` 从全新 staging 目录发布，断言 `NightDesk.exe` 与 `nx-host.exe` 同时存在，并通过 `nx-host 0.2.0 -version` 冒烟检查 |
-| Go Linux 测试 | **通过** | `gofmt` / `go vet` / `go test ./...` 全部通过 |
-| Go Windows 交叉验证 | **通过** | `GOOS=windows go vet ./...`、`go build ./...` 通过；8 个交叉编译测试二进制在 Windows 本机全部 PASS |
-| go-nx 安全端到端探针 | **通过** | 发布版 `nx-host.exe` + `nx-probe.exe`：1920×1080、4 帧、538 tile 更新、7/7 输入回执、首末帧摘要不同、host 退出码 0；使用合成源和日志输入，不抓屏、不调用 SendInput |
-| Android JVM 单测 | **26 项通过** | `CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed` |
-| Android 仪器测试 | **4 项通过** | `HostStoreInstrumentedTest: OK (3 tests)`、`UpdateFlowInstrumentedTest: OK (1 test)`；设备 `emulator-5580`；发布后线上更新源复测仍为 `OK (4 tests)` |
-| Android 1.1.0 构建 | **通过** | Release / Debug / AndroidTest APK，versionCode 7 / versionName 1.1.0；Lint `0 errors / 22 warnings` |
-| Android 模拟器 UI 冒烟 | **通过** | 主页与不可达地址超时界面截图：`artifacts\android\stage5-home.png`、`artifacts\android\stage5-offline-timeout.png` |
-| 线上更新清单 | **通过（1.1.0）** | HTTP 200，versionCode `7` / 1.1.0 / `55058900` 字节；大小、SHA-256 和证书指纹与构建产物一致 |
-| 线上 APK HEAD | **通过** | HTTP 200，`Content-Length: 55058900`，`application/vnd.android.package-archive`；版本下载接口 `versionCode=7` 同样返回 200 |
-| Android 发布一致性 | **通过** | 本地 APK、AI 不可变 APK、HTTPS 下载内容 SHA-256 完全一致；APK v2 签名、ZIP 完整性、包名、versionCode、versionName、minSdk 均通过 |
-| Android 原子发布 | **通过** | 旧清单已备份为 `manifest.json.bak-20261027-062447`；APK 先落盘，别名次之，manifest 最后原子替换 |
+| Windows Release | 210 项通过；0 warnings / 0 errors | 无显示状态改变 |
+| WPF 布局 | 980/1180 DIP × 五页通过；两组三字段独立列 | 纯 XAML，无应用服务 |
+| 更新下载 | 真实 HTTPS -> manifest -> 85MB ZIP -> 双 EXE 哈希/解包通过 | 临时缓存，不安装生产程序 |
+| 安装 helper | 等待测试进程、替换双合成文件、保留备份、重启合成 WinExe 通过 | 临时目录，不是真实升级 |
+| Feed | 5 Python tests 通过 | Android 兼容、Windows 路由、前缀代理、双平台页面 |
+| Android JVM | 27 项通过 | CoreTest 10 + NxConnectionTest 10 + NxTest 7 |
+| Android lint/build | 0 errors / 22 warnings；release/debug/AndroidTest 构建通过 | AI 主机 |
+| Android 仪器 | OK (5 tests) | HostStore 3 + MainUi 1 + UpdateFlow 1 |
+| 线上清单/HEAD | Windows 1.6.0 / Android 1.2.0；HTTP 200，长度/哈希一致 | 更新源发布，不代表远控验收 |
+| VDD 载荷 | 原有大小/签名/提取/篡改拒绝断言通过 | 不执行真实驱动安装 |
 
-Windows 测试入口是不可用 `dotnet test` 替代的断言程序：
+Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名。生产升级、真实 GDI/SendInput、DPI/UAC、物理 Android 和双机 tailnet 仍待人工验收。
 
-```powershell
-$dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
-& $dotnet run --project 'C:\dev\NightDesk\tests\NightDesk.Tests\NightDesk.Tests.csproj' -c Release --no-restore
-& $dotnet build 'C:\dev\NightDesk\src\NightDesk\NightDesk.csproj' -c Release --no-restore
-```
-
-Android 验证目录为 AI 主机上的 `/home/tony/dev/nightdesk-android-stage5`。完整仪器测试：
-
-```bash
-adb -s emulator-5580 shell am instrument -w \
-  -e updateOrigin https://tony-ai-pc-1.tail9f7f1f.ts.net \
-  dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner
-```
 
 ## 3. go-nx 远程控制（阶段 1-7）
 
@@ -89,7 +59,7 @@ adb -s emulator-5580 shell am instrument -w \
 - `nx-probe` 合成源端到端：4 帧、538 tile 更新、动态摘要、7/7 输入回执，全程不抓屏、不调用 SendInput。
 - `NxConnectionTest` 10 项：连接成功、超时、错误分类、重试、旧 attempt 隔离、后台、断开、持久化时机等。
 - `NxTest` 7 项：NX 二维码载荷解析、地址/指纹校验等。
-- Windows 203 项测试覆盖 NX 配对载荷、Viewer 地址/指纹/wire/tile、真实 test-mode 主机连接、Tailscale 地址校验、sidecar 状态清理、VDD 载荷校验和显示快照等；不触碰显示拓扑、不调用真实 SendInput。
+- Windows 210 项测试覆盖 NX 配对载荷、Viewer 地址/指纹/wire/tile、真实 test-mode 主机连接、Tailscale 地址校验、sidecar 状态清理、VDD 载荷校验和显示快照等；不触碰显示拓扑、不调用真实 SendInput。
 
 ### 3.3 尚未验收（硬阻塞）
 
@@ -166,21 +136,21 @@ adb -s emulator-5580 shell am instrument -w \
 
 当前机器已有 Parsec VDD，且现场依赖其中一个虚拟输出，不能为了测试卸载/重装驱动。因此下列项目必须在干净 Windows 10/11 x64 虚拟机或可回滚测试机上执行：
 
-- [ ] 未安装 Parsec VDD 的干净系统直接运行 1.5.0。
+- [ ] 未安装 Parsec VDD 的干净系统直接运行 1.6.0。
 - [ ] 确认 UAC 出现，授权后安装成功，设备管理器中可见 `Parsec Virtual Display Adapter`，无需手工下载安装器。
 - [ ] 拒绝 UAC 后程序仍可启动；同一次用户环境再次启动不重复弹窗；点击“安装 Parsec VDD 驱动”可重试。
 - [ ] 安装器返回非零或超时后界面给出明确错误，且不进入可用状态。
-- [ ] 已安装驱动的系统升级/启动 1.5.0 时不会重装或替换驱动。
+- [ ] 已安装驱动的系统升级/启动 1.6.0 时不会重装或替换驱动。
 - [ ] 在无网络环境运行，确认内嵌安装器仍可使用（安装器自身若需联网组件，需记录实际行为）。
 
 ## 6. 当前桌面现场安全状态
 
-- 06:47 KST 只读检查：Desktop 旧候选 PID 28504 与正式 `nx-host.exe` PID 4444 正在运行；不要强杀或并发启动第二个正式 host。
-- Desktop 的 `NightDesk.exe` 仍是修复前 1.4.0 候选（`201832196` 字节，旧 SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`）；当前正在运行，1.5.0 部署必须先通过 UI 正常退出，不得强杀或直接覆盖。
-- `%LOCALAPPDATA%\NightDesk\recovery.json` 在 06:34 KST 存在（351 字节）；快照未独立验收，不能执行恢复、切屏或 VDD 操作。
-- 最近只读诊断显示唯一活动源为 `\\.\DISPLAY6`（Parsec VDD），没有确认安全的物理输出。
-- 因此本轮**没有**执行 `off` / `on` / `toggle` / `add` / `remove` / `restore`，没有修改显示拓扑、没有卸载/重装 VDD，也没有重启桌面进程，更没有在生产桌面运行真实 `nx-host.exe` 抓屏或 SendInput。
-- Windows 1.4.0 历史候选和阶段 5 APK 保留在 artifacts；1.5.0 部署同样必须等物理显示恢复、快照可验证后，按交接文档受控进行，两个 EXE 必须同目录。
+- 2026-10-27 08:07 KST 只读检查：Desktop NightDesk PID 23116、正式 nx-host PID 20232 正在运行；监听 100.109.77.29:7000，primary / 10 FPS，使用正式状态目录。
+- 恢复快照存在，352 字节，修改时间 07:03:42。物理输出和快照恢复尚未独立验收。
+- 本轮没有替换 Desktop 文件、强杀/重启正式进程、切屏、恢复快照、增删 VDD 或执行真实抓屏/SendInput。
+- PID 会随用户操作变化，不要据此强杀进程。首次升级 1.6.0 必须确认现场可恢复后通过 UI 正常退出，再部署同目录两个 EXE。
+- 在恢复未验证前，不切屏、不恢复快照、不操作 VDD、不运行第二个正式 host。合成测试必须使用 -test-mode -source pattern -inject log。
+
 
 ## 7. 人工验收清单（硬件相关，尚未执行）
 
@@ -218,7 +188,7 @@ adb -s emulator-5580 shell am instrument -w \
 
 ### E. Tailscale HTTPS、扫码绑定与受信任设备
 
-- [ ] 部署 1.5.0 后确认远程地址为当前节点的 `https://<node>.ts.net/`。
+- [ ] 部署 1.6.0 后确认远程地址为当前节点的 `https://<node>.ts.net/`。
 - [ ] 点击“扫描二维码绑定”，确认票据 5 分钟内有效且二维码不包含可见令牌。
 - [ ] Android 扫码成功；桌面设备列表出现设备名与绑定时间；Android 重启后仍可控制。
 - [ ] 同一二维码再次配对失败；超过 5 分钟后配对失败。
@@ -233,11 +203,11 @@ adb -s emulator-5580 shell am instrument -w \
 - [x] 真实 Tailscale HTTPS 下载页、manifest、latest.apk 均返回 200，版本与哈希一致。
 - [x] 未启用 Funnel，其它 Serve 路由未被删除。
 - [ ] 重启 AI 后确认服务自动恢复、URL 仍可用。
-- [x] 1.1.0 发布时确认 APK 先落盘、版本别名次之、manifest 最后原子切换；服务仅在大小与 SHA-256 匹配时提供下载。
+- [x] 1.2.0 发布时确认 APK 先落盘、版本别名次之、manifest 最后原子切换；服务仅在大小与 SHA-256 匹配时提供下载。
 
 ### G. NX 远程控制端到端（需独立测试机与真机）
 
-- [ ] 在独立的 Windows 11 / Server 2022 测试机部署同目录的 `NightDesk.exe` 与 `nx-host.exe`（1.5.0），确认 sidecar 可启动且有日志。
+- [ ] 在独立的 Windows 11 / Server 2022 测试机部署同目录的 `NightDesk.exe` 与 `nx-host.exe`（1.6.0），确认 sidecar 可启动且有日志。
 - [ ] 桌面“扫描二维码绑定”生成 NX 配对码，Android 真机通过 tailnet 扫码。
 - [ ] 确认首帧、tile 差分、滚动、点击、右键、组合键和 Unicode 文本可用。
 - [ ] 验证错误配对码、二维码过期、证书指纹变化、主机锁定、另一台设备接管和断网重连。
@@ -264,9 +234,9 @@ adb -s emulator-5580 shell am instrument -w \
 
 ## 9. 交付边界
 
-- Android 1.1.0（versionCode 7）已实现多主机、扫码绑定、永久设备令牌、独立更新源和 go-nx 低带宽远控，并完成远端构建、26 项 JVM 单测、4 项仪器测试及线上更新源下载验证；物理真机联调仍需人工验收。
-- Android 1.1.0 已发布到 AI 更新源，下载/哈希/签名和模拟器更新流程已通过；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机和 tailnet UDP/QUIC **未验收**。
-- Windows 1.5.0 已构建、203 项测试通过，并通过真实 `nx-host.exe -test-mode` 与 WPF 控制窗口渲染冒烟。`Desktop\NightDesk.exe` 仍是修复前旧候选，尚未替换；部署时必须把新版 `NightDesk.exe` 与 `nx-host.exe` 一起复制到同一目录。
+- Android 1.2.0（versionCode 8）已实现多主机、扫码绑定、永久设备令牌、独立更新源和 go-nx 低带宽远控，并完成远端构建、27 项 JVM 单测、5 项仪器测试及线上更新源下载验证；物理真机联调仍需人工验收。
+- Android 1.2.0 已发布到 AI 更新源，下载/哈希/签名和模拟器更新流程已通过；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机和 tailnet UDP/QUIC **未验收**。
+- Windows 1.6.0 已发布、210 项测试通过，并通过真实 `nx-host.exe -test-mode` 与 WPF 控制窗口渲染冒烟。`Desktop\NightDesk.exe` 仍运行现有版本，本轮未替换；部署时必须把新版 `NightDesk.exe` 与 `nx-host.exe` 一起复制到同一目录。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
 - go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不是通用远程桌面，不等同于 Sunshine/Parsec 视频串流。
 - 应用不提供任意 shell、文件访问或通用桌面控制接口。

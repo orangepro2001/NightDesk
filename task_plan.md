@@ -42,7 +42,7 @@
 24. [done] Repair the Windows XAML startup crash, add a static regression test, republish the Windows candidate and pass WPF startup smoke verification.
 25. [done] Publish Android 1.1.0 (versionCode 7) to the AI feed, back up the old manifest, verify immutable APK/alias/manifest atomically, and re-run the 4 live-feed instrumented tests.
 26. [done] Add desktop-to-desktop control to the Windows app: address/code/fingerprint input, pinned C# QUIC viewer window, safe input handling, synthetic host integration test and 1.5.0 recovery documentation.
-27. [in progress] Paginate and redesign the Windows and Android UIs, fix field/text overlap, add Windows auto-download updates, and publish both Windows and Android through the AI feed.
+27. [done] Paginate and redesign the Windows and Android UIs, fix field/text overlap, add Windows auto-download updates, and publish both Windows and Android through the AI feed.
 
 ## Verification invariants
 
@@ -61,44 +61,30 @@
 
 ## Current verification
 
-- Windows Release tests: **203 passed**; output says `203 tests passed. No display state changed.`
-- Windows Release build: **0 warnings / 0 errors**.
-- Windows candidate directory: `artifacts\win-x64-1.5.0`.
-- `NightDesk.exe`: ProductVersion `1.5.0+d720ce2eb18a793b348c3be209d9dedc095bc79d`, size `201885444`, SHA-256 `50C71DADC8C1E425026CDC38C64DFEBE971E834B3E2DEE94F695F7E056EBD626`.
-- `nx-host.exe`: size `7938048`, SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`, `-version` returns `nx-host 0.2.0`.
-- `tools\publish-windows.ps1` uses a fresh staging directory, requires both EXEs and runs a sidecar smoke check.
-- Go Linux/Windows: `go vet ./...`, `go test ./...` and Windows cross-build pass; 8 cross-compiled test binaries pass on Windows.
-- Safe probe: `1920x1080`, 4 frames, 538 tile updates, 7/7 input receipts, differing frame digests and host exit 0; no GDI capture and no SendInput.
-- Android stage 5 JVM tests: `CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed`.
-- Android stage 5 instrumented tests: `HostStoreInstrumentedTest: OK (3 tests)` + `UpdateFlowInstrumentedTest: OK (1 test)` on `emulator-5580`.
-- Android stage 5 lint/build: `0 errors / 22 warnings`; emulator UI smoke screenshots captured.
-- Android published release: 1.1.0 / versionCode 7, local artifact `artifacts\android\nightdesk-1.1.0-stage5.apk`, size `55058900`, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`; AI immutable file `nightdesk-7.apk`.
-- Live Android feed is versionCode 7 / 1.1.0. The manifest, APK size/SHA-256, certificate, HTTPS download and emulator update flow were verified after publication.
-- Desktop control integration test: real `nx-host.exe -test-mode -source pattern -inject log` verified wrong-code rejection, 1920x1080 frame decode, ACK/next frame, input receipt and pin persistence. Actual `NxViewerWindow` rendering was smoke-tested against the same synthetic source.
+- Windows：210 tests passed. No display state changed. 串行 Release build 0 warnings / 0 errors。
+- WPF：纯 XAML 渲染 980/1180 DIP × 5 页通过，NX host/viewer 两组三字段的列和边界互不重叠。
+- 安装器：实际 helper 在隔离临时目录等待自有测试进程、替换双合成文件、保留备份、重启合成 WinExe；未安装生产程序。
+- 真实 Windows 下载器：临时缓存 + 旧版本比较值，HTTPS 下载当前 ZIP，校验包和双 EXE，解包 ready 成功；未调用安装。
+- Android：27 JVM tests，lint 0 errors / 22 warnings；HostStore 3 + MainUi 1 + UpdateFlow 1 = 5 instrumented tests。发布后 UpdateFlow 另跑 1 项通过。
+- Feed：5 Python tests；双平台 HTTPS manifest/HEAD 200；本地/AI/线上大小和哈希一致。
+- 服务 active / enabled，healthz = ok android=ok windows=ok；其它 Serve 路由和 Funnel 状态未改变。
 
-## Remaining manual work
+- 实现提交：`93147b357a9b8497cd2be4c67d3af99668279724`。
+- Windows 1.6.0 / 10600，ZIP 已在 AI 发布；当前生产桌面未被本轮替换。
+- 本地 Windows：`C:\dev\NightDesk\artifacts\win-x64-1.6.0`；NightDesk.exe 201922308 字节，SHA-256 `d5c1c09832ad80d638fe27af9e68c41b8ff4e4dd0b5dcb89faabc2559be72e5d`。
+- Windows ZIP：85183345 字节，SHA-256 `de162ec69f0f9c9d2e855fc7a084b1c316b4d78284be5b131fd393ec461004cb`。
+- nx-host.exe 0.2.0 未改变，7938048 字节，SHA-256 `17b420ce531270e28bef58d42dd68f5c13cac6c5fe4cbfd4fdbb20051ad35e3`。
+- Android 1.2.0 / 8，55058900 字节，SHA-256 `82136d2992ff30c3bf84a5d45a02bc04bda4d38203880193883abb747100c52f`，AI 不可变文件 nightdesk-8.apk。
+- Android 发布证书保持 `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`。
 
-- Windows 1.5.0 desktop-control details are in `docs/20261027-064503-windows-desktop-control-1.5.0-handoff.md`; synthetic verification does not replace two-machine acceptance.
-- Android 1.1.0 publication/recovery details are in `docs/20261027-062721-android-1.1.0-publication-handoff.md`; publication does not replace real-device acceptance.
-- At the 2026-10-27 06:47 KST read-only check, Desktop `NightDesk.exe` PID 28504 was running and `nx-host.exe` PID 4444 was listening on `100.109.77.29:7000` with the production state directory. Do not kill, replace, or start a second production host; 1.5.0 deployment requires a normal UI exit after display recovery is verified. `recovery.json` exists again (351 bytes).
-- After controlled deployment of 1.5.0, verify that `NightDesk.exe` and `nx-host.exe` are in the same directory, then check local status, Tailscale address, remote page, QR pairing, long-term token persistence, trusted-device revocation, display off/on/restore and hotkey behavior.
-- Verify real VDD add/remove with all other VDD managers closed; verify VDD auto-install on a machine where the driver is genuinely absent.
-- Real NX end-to-end acceptance still requires independent Windows test machines with recoverable display/input and an Android physical device; the synthetic probe and desktop viewer smoke do not validate GDI capture, SendInput, DPI mapping, secure desktop or real tailnet UDP. Recovery steps: `docs/20261027-041844-remote-control-stage-7-safe-e2e-probe-handoff.md`.
-- Required real-device checks:
-  - GDI first frame and tile deltas;
-  - mouse move/click/wheel, Unicode text and key chords;
-  - sidecar firewall/tailnet reachability;
-  - disconnect, background, forced stop, replacement takeover, wrong code and certificate change;
-  - no residual button/key state after disconnect;
-  - DPI, lock screen and display sleep behavior.
-- The current host cannot safely run a real production-desktop `nx-host.exe` capture/SendInput test. This is the hard blocker; it is not evidence that the integrated code has failed.
+## Remaining manual work / safety state
 
-## Safety state
-
-- `C:\Users\pixel\AppData\Local\NightDesk\recovery.json` existed at 06:34 KST (351 bytes). Its presence does not prove the snapshot or physical output is safe; do not restore, toggle displays or run real capture/SendInput until physical output and VDD state are independently verified.
-- Last recorded read-only diagnostic reports the only active source as `\\.\DISPLAY6` (Parsec VDD); no active physical output was confirmed in that diagnostic.
-- Do not toggle displays, restore a snapshot, add/remove a VDD, install/uninstall a display driver, or run real capture/SendInput while recovery is unverified.
-- `docs/HANDOFF.md`现场安全说明优先于本文件的任何旧状态记录。
+- 2026-10-27 08:07 KST 只读：Desktop NightDesk PID 23116、正式 nx-host PID 20232；100.109.77.29:7000，primary / 10 FPS。
+- recovery.json 存在，352 字节，修改时间 07:03:42。PID 会变，不可据此强杀。
+- 没有替换 Desktop、没有强杀/重启正式进程、没有切屏/恢复/VDD 操作、没有真实 GDI/SendInput 验收。
+- 首次进入 1.6.0 仍须手动部署两个 EXE；先确认物理输出/快照恢复，再从旧版 UI 正常退出。后续更高版本自动下载，安装需确认。
+- Windows ZIP 未代码签名；SHA-256/HTTPS/tailnet ACL 不等同于独立签名；helper 不提权。
+- 真实双机 tailnet UDP/QUIC、GDI/SendInput、DPI/UAC、安全桌面、Android 物理真机、长期资源占用、生产自更新仍需验收。
 
 ## Current feature plan: desktop-to-desktop control
 
@@ -119,7 +105,7 @@ Success criteria: entering a reachable host address and the current pairing code
 3. [done] Split the Android app into persistent bottom navigation pages (home, display, remote control, updates) with a compact status header.
 4. [done] Add a Windows update client: startup/6-hour check, automatic verified download, staged install helper and user-confirmed restart.
 5. [done] Extend the AI feed to serve immutable Windows ZIPs plus an atomic Windows manifest alongside the existing Android feed.
-6. [ ] Run Windows tests/build/publish, Android JVM/lint/instrumented/emulator smoke tests, publish Windows 1.6.0 and Android 1.2.0, verify live downloads, and document recovery.
+6. [done] Run Windows tests/build/publish, Android JVM/lint/instrumented/emulator smoke tests, publish Windows 1.6.0 and Android 1.2.0, verify live downloads, and document recovery.
 
 ### UI/update implementation verification (2026-10-27 KST)
 
@@ -128,4 +114,4 @@ Success criteria: entering a reachable host address and the current pairing code
 - Installer: the actual helper replaced two synthetic files in a temporary directory, preserved backups and restarted a synthetic WinExe. Production processes untouched.
 - AI Android 1.2.0: 27 JVM tests, lint 0 errors/22 warnings, 5 instrumented tests passed; bottom navigation and system-bar insets verified.
 - Feed: 5 Python tests passed for Android compatibility, Windows manifest/ZIP, dual index and proxy-stripped routes.
-- Pending: build immutable Windows package from the implementation commit, publish both releases on AI, verify HTTPS downloads, write timestamped release handoff.
+- Published Windows 1.6.0 and Android 1.2.0 on AI; verified HTTPS manifests, lengths, hashes and actual Windows downloader. Handoff: docs/20261027-080919-paginated-ui-desktop-update-1.6.0-handoff.md
