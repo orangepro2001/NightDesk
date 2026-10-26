@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
 using System.Windows;
 using Forms = System.Windows.Forms;
@@ -469,6 +470,7 @@ public partial class MainWindow : Window
                 {
                     nxTimer.Start();
                     SetStatus($"配对码 {value.Code} 已生成，{value.ExpiresIn ?? 300} 秒内有效；仅能绑定一台新设备。");
+                    _ = ShowNxPairingWindowAsync();
                 }
                 else SetStatus("配对窗口已关闭。");
                 break;
@@ -522,8 +524,19 @@ public partial class MainWindow : Window
     private async void NxPair_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
         if (!nxHost.IsRunning) throw new InvalidOperationException("请先启用低带宽远控。");
+        if (IPEndPoint.TryParse(NxListenBox.Text.Trim(), out var endpoint) && IPAddress.IsLoopback(endpoint.Address))
+            throw new InvalidOperationException("当前只监听环回地址，手机无法连接。请先停止远控，点击“填入 Tailscale 地址”，再重新启用。");
         await nxHost.PairAsync(300);
         SetStatus("正在打开 5 分钟配对窗口…");
+    });
+
+    private async void NxTailscale_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (nxHost.IsRunning) throw new InvalidOperationException("请先停止低带宽远控，再修改监听地址。");
+        tailscale ??= new TailscaleService();
+        string ipv4 = await tailscale.GetIPv4Async();
+        NxListenBox.Text = NxPairingPayload.WithHost(NxListenBox.Text.Trim(), ipv4);
+        SetStatus($"已填入 Tailscale 地址 {ipv4}。启用远控后即可生成手机可扫描的二维码。");
     });
 
     private async void NxRefresh_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
@@ -546,6 +559,44 @@ public partial class MainWindow : Window
         await nxHost.UntrustAsync(device.Fingerprint);
         SetStatus($"已请求解除 {device.ShortFingerprint} 的信任。");
     });
+
+    private async Task ShowNxPairingWindowAsync()
+    {
+        try
+        {
+            var ready = nxHost.ReadyEvent ?? throw new InvalidOperationException("远控尚未就绪，无法生成二维码。");
+            string? code = nxHost.PairingCode;
+            if (string.IsNullOrEmpty(code)) return;
+            string? identity = ready.Identity;
+            if (string.IsNullOrWhiteSpace(identity))
+                throw new InvalidOperationException("sidecar 尚未报告主机证书指纹，请刷新设备后重试。");
+            if (ready.Width is not > 0 || ready.Height is not > 0)
+                throw new InvalidOperationException("sidecar 尚未报告有效屏幕尺寸。");
+
+            string? ipv4 = null;
+            try
+            {
+                tailscale ??= new TailscaleService();
+                ipv4 = await tailscale.GetIPv4Async();
+            }
+            catch (Exception ex)
+            {
+                RemoteDiagnostics.Log("read Tailscale IPv4 for NX pairing", ex);
+            }
+            string addr = NxPairingPayload.ResolveAddress(ready.Listen ?? "", ipv4);
+            long expires = nxHost.PairingExpiresAt == default
+                ? DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds()
+                : nxHost.PairingExpiresAt.ToUnixTimeSeconds();
+            var payload = new NxPairingPayload(addr, identity, code, expires, Environment.MachineName, ready.Width.Value, ready.Height.Value);
+            payload.Validate();
+            new NxPairingWindow(payload, this).ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            SetStatus("无法生成可连接的远控二维码：" + ex.Message, true);
+            MessageBox.Show(this, ex.Message, "低带宽远控配对", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
 
     private async void Exit_Click(object sender, RoutedEventArgs e) => await ExitAsync();
 }

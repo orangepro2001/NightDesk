@@ -33,6 +33,32 @@ public sealed class TailscaleService
             throw new InvalidOperationException("本机没有有效的 Tailscale HTTPS DNS 地址。");
         return $"https://{name}/";
     }
+
+    /// <summary>
+    /// Returns this node's Tailscale IPv4 address. The NX data plane is raw
+    /// QUIC/UDP and therefore cannot use the HTTPS Serve proxy.
+    /// </summary>
+    public async Task<string> GetIPv4Async()
+    {
+        using var state = JsonDocument.Parse(await RunAsync("status", "--json"));
+        if (!state.RootElement.TryGetProperty("BackendState", out var backend) || backend.GetString() != "Running")
+            throw new InvalidOperationException("Tailscale 尚未连接。");
+        return ExtractIPv4(state.RootElement)
+            ?? throw new InvalidOperationException("Tailscale 状态中没有可用的 100.64.0.0/10 IPv4 地址。");
+    }
+
+    /// <summary>Extracts the first Tailscale CGNAT IPv4 from `tailscale status --json`.</summary>
+    public static string? ExtractIPv4(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("Self", out var self) ||
+            self.ValueKind != JsonValueKind.Object || !self.TryGetProperty("TailscaleIPs", out var ips) ||
+            ips.ValueKind != JsonValueKind.Array)
+            return null;
+        foreach (var item in ips.EnumerateArray())
+            if (item.ValueKind == JsonValueKind.String && NxPairingPayload.TryParseTailscaleIPv4(item.GetString(), out var address))
+                return address.ToString();
+        return null;
+    }
     /// <summary>启用 443 入口；若现有 Serve 配置正好是本机的 NightDesk 路由，则直接接管，不要求旧指纹匹配。</summary>
     public async Task<string> EnableAsync() => (await EnsureServeAsync()).Fingerprint;
 

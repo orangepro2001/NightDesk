@@ -1,8 +1,6 @@
-using QRCoder;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 namespace NightDesk;
 
@@ -55,7 +53,7 @@ public sealed class PairingWindow : Window
         };
         qrBorder.Child = new Image
         {
-            Source = CreateQr(pairing.Payload),
+            Source = QrImages.Create(pairing.Payload),
             Width = 340,
             Height = 340,
             Stretch = Stretch.Uniform,
@@ -95,18 +93,4 @@ public sealed class PairingWindow : Window
         Content = new ScrollViewer { VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Content = panel };
     }
 
-    private static BitmapImage CreateQr(string payload)
-    {
-        using var generator = new QRCodeGenerator();
-        using var data = generator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.Q);
-        byte[] png = new PngByteQRCode(data).GetGraphic(8);
-        using var stream = new MemoryStream(png);
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.CacheOption = BitmapCacheOption.OnLoad;
-        image.StreamSource = stream;
-        image.EndInit();
-        image.Freeze();
-        return image;
-    }
 }

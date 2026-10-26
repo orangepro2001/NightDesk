@@ -311,6 +311,28 @@ var trustedRaw = NxTrustedDevice.Create("fingerprint", "not-a-timestamp");
 Check(trustedRaw.Endpoint == "not-a-timestamp" && trustedRaw.PairedAt == "", "keep unparseable trust value visible");
 Check(NxTrustedDevice.From(null).Count == 0, "empty trust list has no devices");
 
+var nxFingerprint = new string('A', 64);
+var nxPayload = new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), "PC-TEST", 1920, 1080);
+nxPayload.Validate();
+using (var qrJson = JsonDocument.Parse(nxPayload.ToJson()))
+{
+    Check(qrJson.RootElement.GetProperty("kind").GetString() == "nightdesk-nx", "NX QR kind");
+    Check(qrJson.RootElement.GetProperty("fingerprint").GetString() == nxFingerprint.ToLowerInvariant(), "NX QR lowercases fingerprint");
+    Check(qrJson.RootElement.GetProperty("addr").GetString() == "100.100.1.2:7000", "NX QR carries reachable address");
+}
+Check(NxPairingPayload.ResolveAddress("100.100.1.2:7000", null) == "100.100.1.2:7000", "NX explicit reachable address");
+Check(NxPairingPayload.ResolveAddress("0.0.0.0:7000", "100.100.1.2") == "100.100.1.2:7000", "NX wildcard uses Tailscale IPv4");
+Check(NxPairingPayload.WithHost("0.0.0.0:7000", "100.100.1.2") == "100.100.1.2:7000", "NX fills Tailscale host and preserves port");
+Reject(() => NxPairingPayload.ResolveAddress("127.0.0.1:7000", "100.100.1.2"), "NX QR rejects loopback sidecar");
+Check(NxPairingPayload.TryParseTailscaleIPv4("100.64.0.1", out _), "Tailscale IPv4 lower bound");
+Check(NxPairingPayload.TryParseTailscaleIPv4("100.127.255.254", out _), "Tailscale IPv4 upper bound");
+Check(!NxPairingPayload.TryParseTailscaleIPv4("100.63.255.255", out _), "reject address below Tailscale range");
+Check(!NxPairingPayload.TryParseTailscaleIPv4("100.128.0.1", out _), "reject address above Tailscale range");
+Check(!NxPairingPayload.TryParseTailscaleIPv4("fd7a:115c:a1e0::1", out _), "reject Tailscale IPv6 as NX IPv4");
+using (var tailscaleStatus = JsonDocument.Parse("""{"BackendState":"Running","Self":{"TailscaleIPs":["fd7a:115c:a1e0::1","100.88.9.7"]}}"""))
+    Check(TailscaleService.ExtractIPv4(tailscaleStatus.RootElement) == "100.88.9.7", "extract Tailscale IPv4 from status");
+Reject(() => new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeSeconds(), "PC", 1920, 1080).Validate(), "NX QR rejects expired pairing");
+
 string locatorDir = Path.Combine(Path.GetTempPath(), "nightdesk-locator-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(locatorDir);
 string locatorExe = Path.Combine(locatorDir, "nx-host.exe");
