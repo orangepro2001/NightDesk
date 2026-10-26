@@ -6,24 +6,31 @@
 
 ### Windows 桌面端
 
-- 代码基线：`40355ae239d98961951ef2ca7de10f5ff1fb253a`
+- 代码基线：`fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`
 - 候选版本：**1.4.0**
 - 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.4.0`
-- `NightDesk.exe`：`201832196` 字节，SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`，ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`。
-- `nx-host.exe`：`7895040` 字节，SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`，`-version` 为 `nx-host 0.1.0`。
+- `NightDesk.exe`：`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`。
+- `nx-host.exe`：`7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 为 `nx-host 0.2.0`。
 - 两个 EXE 必须同目录部署；sidecar 被明确排除在 single-file 包之外。
 - 发布必须使用 `tools\publish-windows.ps1`。脚本发布到全新 staging 目录，断言两份文件存在并运行 sidecar 冒烟检查。
 - Release 测试：**176 项通过，未改变显示状态**
 - Release 构建：**0 警告 / 0 错误**
 - 已实现：熄屏/点亮、Parsec VDD 增删与分辨率/刷新率配置、防休眠、可修改全局快捷键、Tailscale HTTPS 远程控制、扫码配对、永久设备令牌、受信任设备管理、统一程序图标。
 - 1.4.0 已把官方 Parsec VDD 安装器作为 EmbeddedResource 打入单文件 EXE。启动检测不到 VDD 时，验证载荷后以 UAC + `/S` 自动安装；每个用户环境自动尝试一次，失败后可从 UI 手动重试。驱动已安装时绝不重装或替换。
-- go-nx 远程数据面（阶段 1-5）已接入：
+- go-nx 远程数据面（阶段 1-7）已接入：
   - Windows 启动受 Job Object 监控的 `nx-host.exe` sidecar；
   - sidecar 采集单个显示器，发送 64×64 tile 差分；
   - 使用 QUIC + TLS 1.3、证书固定和 6 位短期配对码；
   - WPF 通过 stdin/stdout JSON 行协议管理 sidecar；
   - sidecar 异常退出后清除陈旧的 running/ready 状态；
   - 它支持静态桌面和轻量交互，不是 H.264/HEVC/AV1 视频串流。
+- 阶段 7 安全端到端验收：
+  - `nx-host.exe` 新增 `-test-mode`，必须同时指定 `-source pattern -inject log`，否则退出码 2；
+  - 使用合成 1920×1080 动态源和日志输入，不抓屏、不调用 SendInput、不读写生产 trust store；
+  - `nx-probe.exe` 走与 Android 相同的 pinned TLS、配对、QUIC 和 tile 解码路径；
+  - 对发布版 `nx-host.exe` 实测：4 帧、538 tile 更新、7/7 输入回执、首末帧摘要不同、host 退出码 0；
+  - Go Linux/Windows `vet`、`test`、交叉构建通过，8 个 Windows 测试二进制全部 PASS。
+- 尚未验收：真实 GDI 抓屏、真实 SendInput/DPI 映射/UAC 安全桌面、显示热插拔、Android 真机 tailnet UDP/QUIC、长时稳定性和资源占用。
 
 ### Android 客户端
 

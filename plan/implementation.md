@@ -1,8 +1,8 @@
 # NightDesk implementation plan
 
 更新时间：2026-10-27（Asia/Seoul）
-当前代码基线：`40355ae239d98961951ef2ca7de10f5ff1fb253a`
-最新交接：`docs/20261027-035456-remote-control-stage-6-packaging-handoff.md`
+当前代码基线：`fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`
+最新交接：`docs/20261027-041844-remote-control-stage-7-safe-e2e-probe-handoff.md`
 
 ## Scope / assumptions
 
@@ -32,22 +32,25 @@
 13. [done] Stage 6 packaging fix: copy `nx-host.exe` to the publish directory, exclude it from the single-file bundle, add `tools/publish-windows.ps1`, and rebuild Windows 1.4.0.
 14. [done] Re-run the Android stage 5 build and tests on AI; confirm the local candidate hashes match the AI outputs.
 15. [done] Update current handoff, acceptance, progress and planning documents with the 1.4.0 candidate and the production safety gate.
+16. [done] Stage 7 safe end-to-end probe: `nx-host -test-mode` with a synthetic pattern source and log-only injector, standalone `nx-probe`, negative misuse guard, moved-input receipts and published-artifact acceptance.
 
 ## Verification
 
 - Windows Release tests: **176 passed**, output `176 tests passed. No display state changed.`
 - Windows Release build: **0 warnings / 0 errors**.
 - Windows publish: `tools\publish-windows.ps1` publishes into fresh staging, requires both `NightDesk.exe` and `nx-host.exe`, and checks `nx-host.exe -version`.
+- go-nx Linux/Windows: `gofmt` on touched files, `go vet`, `go test` and Windows cross-build pass; 8 cross-compiled test binaries pass on Windows.
+- go-nx safe probe: published `nx-host.exe` + `nx-probe.exe` produced 1920x1080, 4 frames, 538 tile updates, 7/7 input receipts, differing frame digests and host exit code 0 without capture or SendInput.
 - Android stage 5: 26 JVM tests, 4 instrumented tests, lint/build and emulator UI smoke.
 - Pure logic + authenticated HTTP integration tests; malformed or unauthorized requests never reach display actions.
 - Embedded installer presence, extraction, hash/signature validation and tamper rejection tested.
-- Real display switching, absent-driver VDD installation, physical Android and second-tailnet-node acceptance remain manual.
+- Real display switching, absent-driver VDD installation, real GDI capture, real SendInput, physical Android and second-tailnet-node acceptance remain manual.
 
 ## Current artifact facts
 
 - Windows candidate: `artifacts\win-x64-1.4.0`.
-  - `NightDesk.exe`: `201832196` bytes, SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`, ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`.
-  - `nx-host.exe`: `7895040` bytes, SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`, version `nx-host 0.1.0`.
+  - `NightDesk.exe`: `201832196` bytes, SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`, ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`.
+  - `nx-host.exe`: `7938048` bytes, SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`, version `nx-host 0.2.0`.
 - Android stage 5 candidate: `artifacts\android\nightdesk-1.1.0-stage5.apk`, `55058900` bytes, SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`; not published.
 - Live Android feed remains versionCode 5 / 1.0.4.
 

@@ -8,7 +8,7 @@
 - Remote: `git@github.com:orangepro2001/NightDesk.git`.
 - Branch: `main`.
 - Initial import: `b1855e4 chore: initial NightDesk source import`.
-- Current code baseline: `40355ae239d98961951ef2ca7de10f5ff1fb253a fix(desktop): ship nx-host with the published app`.
+- Current code baseline: `fff73bb2b823f52f86f8807a9f0a59c6e3283ebd feat(nx): add safe end-to-end remote-control probe`.
 - This is a Git repository; the earlier note saying otherwise was stale.
 - `artifacts/` is intentionally ignored and is not committed; binaries are local delivery evidence, not source.
 
@@ -88,8 +88,10 @@
 ## Other current facts
 
 - Windows 1.4.0 candidate directory: `artifacts\win-x64-1.4.0`.
-- `NightDesk.exe`: size `201832196`, SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`, ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`.
-- `nx-host.exe`: size `7895040`, SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`, version `nx-host 0.1.0`.
+- `NightDesk.exe`: size `201832196`, SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`, ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`.
+- `nx-host.exe`: size `7938048`, SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`, version `nx-host 0.2.0`.
+- Safe end-to-end probe: synthetic 1920x1080 source, 4 frames, 538 tile updates, 7/7 input receipts, differing frame digests, host exit 0; no GDI capture and no SendInput.
+- Real GDI capture, SendInput/DPI/UAC behavior and physical Android tailnet acceptance remain unverified.
 - Release tests: **176 passed**, no display mutation.
 - Release build: **0 warnings / 0 errors**.
 - `C:\dev\NightDesk` is a Git repository with remote `origin`; do not treat local artifact hashes as proof of end-to-end remote-control acceptance.

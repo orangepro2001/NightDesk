@@ -4,11 +4,12 @@
 
 ## 当前交付状态（2026-10-27）
 
-- 当前代码基线：`40355ae239d98961951ef2ca7de10f5ff1fb253a`（阶段 6：发布包同时携带 `nx-host.exe`）。
+- 当前代码基线：`fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`（阶段 7：安全端到端探针）。
 - Windows **1.4.0 候选**已通过 **176 项 Release 测试**，Release 构建 0 警告 / 0 错误。发布目录 `C:\dev\NightDesk\artifacts\win-x64-1.4.0` 必须同时包含：
-  - `NightDesk.exe`：`201832196` 字节，SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`，ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`。
-  - `nx-host.exe`：`7895040` 字节，SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`，`-version` 输出 `nx-host 0.1.0`。
+  - `NightDesk.exe`：`201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`。
+  - `nx-host.exe`：`7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 输出 `nx-host 0.2.0`。
 - 发布必须使用 `tools\publish-windows.ps1`；脚本使用全新 staging 目录并断言两份文件都存在。只复制 `NightDesk.exe` 会导致 NX 远控不可用。
+- 阶段 7 新增 `nx-probe.exe` 与 `tools\test-nx-probe.ps1`：用与 Android 相同的 pinned TLS / 配对 / QUIC / tile 解码路径，在合成源上安全验收首帧、动态帧、tile 差分和 7/7 输入回执，不抓屏、不调用 SendInput。详见 `docs/20261027-041844-remote-control-stage-7-safe-e2e-probe-handoff.md`。
 - 1.4.0 仍将官方 Parsec VDD 安装器内嵌在单文件 EXE 中。启动时未检测到 VDD 设备接口，会在用户授权 UAC 后自动安装；已安装时绝不重装或替换驱动。
 - **生产现场**：PID **13816** 仍是 **1.3.1**（`C:\Users\pixel\Desktop\NightDesk.exe`），生产目录**没有** `nx-host.exe`，当前也没有 `nx-host` 进程。因此当前生产版本不能提供完整 NX 数据面；1.4.0 尚未部署。
 - `%LOCALAPPDATA%\NightDesk\recovery.json` 仍存在；最近只读诊断显示唯一活动源为 `\\.\DISPLAY6`（Parsec VDD），没有活动物理输出。**在物理显示器可恢复、快照可验证之前，不要退出/重启 NightDesk，也不要执行熄屏、点亮、恢复快照或 VDD 增删。**

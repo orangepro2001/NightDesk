@@ -2,16 +2,16 @@
 
 更新日期：2026-10-27（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：go-nx 远程控制阶段 6（Windows 发布包完整性与 1.4.0）、阶段 5 Android 连接生命周期、`nx-host.exe` sidecar、Android 多主机管理、Parsec VDD 随包安装，以及现场显示安全门禁。
+本轮范围：go-nx 远程控制阶段 7（安全端到端探针）、阶段 6 发布包完整性、阶段 5 Android 连接生命周期、`nx-host.exe` 0.2.0 sidecar、Android 多主机管理、Parsec VDD 随包安装，以及现场显示安全门禁。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
-| 代码基线 | `40355ae239d98961951ef2ca7de10f5ff1fb253a` |
+| 代码基线 | `fff73bb2b823f52f86f8807a9f0a59c6e3283ebd` |
 | Windows 候选目录 | `C:\dev\NightDesk\artifacts\win-x64-1.4.0`，必须同时包含 `NightDesk.exe` 与 `nx-host.exe` |
-| Windows `NightDesk.exe` | `201832196` 字节，SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`，ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a` |
-| Windows `nx-host.exe` | `7895040` 字节，SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`，`-version` 为 `nx-host 0.1.0` |
+| Windows `NightDesk.exe` | `201832196` 字节，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd` |
+| Windows `nx-host.exe` | `7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 为 `nx-host 0.2.0` |
 | 运行中程序 | PID **13816**，ProductVersion **1.3.1**，`C:\Users\pixel\Desktop\NightDesk.exe`；生产目录缺少 `nx-host.exe`，不能提供完整 NX 数据面 |
 | Android 已发布版本 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，versionCode **5** / versionName **1.0.4** |
 | Android 已发布大小 / SHA-256 | `6991035` 字节 / `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436` |
@@ -38,7 +38,10 @@
 | Windows Release 测试 | **176 项通过** | 输出 `176 tests passed. No display state changed.`；测试未创建、删除或切换显示器 |
 | Windows Release 构建 | **通过** | `0 个警告 / 0 个错误` |
 | VDD 载荷测试 | **通过** | 确认 EmbeddedResource 存在、可提取、大小与 SHA-256 正确、签名主体为 `Parsec Cloud, Inc.`；篡改与缺失载荷均被拒绝 |
-| Windows 发布完整性 | **通过** | `tools\publish-windows.ps1` 从全新 staging 目录发布，断言 `NightDesk.exe` 与 `nx-host.exe` 同时存在，并通过 `nx-host -version` 冒烟检查 |
+| Windows 发布完整性 | **通过** | `tools\publish-windows.ps1` 从全新 staging 目录发布，断言 `NightDesk.exe` 与 `nx-host.exe` 同时存在，并通过 `nx-host 0.2.0 -version` 冒烟检查 |
+| Go Linux 测试 | **通过** | `gofmt` / `go vet` / `go test ./...` 全部通过 |
+| Go Windows 交叉验证 | **通过** | `GOOS=windows go vet ./...`、`go build ./...` 通过；8 个交叉编译测试二进制在 Windows 本机全部 PASS |
+| go-nx 安全端到端探针 | **通过** | 发布版 `nx-host.exe` + `nx-probe.exe`：1920×1080、4 帧、538 tile 更新、7/7 输入回执、首末帧摘要不同、host 退出码 0；使用合成源和日志输入，不抓屏、不调用 SendInput |
 | Android JVM 单测 | **26 项通过** | `CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed` |
 | Android 仪器测试 | **4 项通过** | `HostStoreInstrumentedTest: OK (3 tests)`、`UpdateFlowInstrumentedTest: OK (1 test)`；设备 `emulator-5580` |
 | Android 阶段 5 构建 | **通过** | Release / Debug / AndroidTest APK，versionCode 7 / versionName 1.1.0；Lint `0 errors / 22 warnings` |
@@ -62,20 +65,24 @@ adb -s emulator-5580 shell am instrument -w \
   dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-## 3. go-nx 远程控制（阶段 1-6）
+## 3. go-nx 远程控制（阶段 1-7）
 
-### 3.1 已实现并自动验证
+### 3.1 已实现（真实抓屏/注入仍需独立测试机验收）
 
 - Windows 以独立 `nx-host.exe` sidecar 提供数据面，WPF 通过 stdin/stdout JSON 行协议管理；sidecar 受 Job Object 约束，异常退出后清除陈旧的 running / ready 状态。
-- sidecar 使用 GDI 采集单个显示器，按 **64 × 64 tile 差分**发送；不是 H.264/HEVC/AV1 视频编码。
+- sidecar 具备单显示器 GDI 采集与 **64 × 64 tile 差分**路径；不是 H.264/HEVC/AV1 视频编码。**真实 GDI 抓屏尚未验收。**
 - 传输使用 **QUIC + TLS 1.3**，Android 固定主机证书指纹；配对使用 6 位短期配对码，二维码包含 `nightdesk-nx` 载荷、Tailscale IPv4 地址和指纹。
-- Windows 输入通过 `SendInput` 注入鼠标移动、按键、滚轮、虚拟键和 Unicode 文本。
+- Windows 输入具备 `SendInput` 路径（鼠标移动、按键、滚轮、虚拟键和 Unicode 文本）。**真实 SendInput、DPI 映射与 UAC/安全桌面行为尚未验收。**
+- `nx-host -test-mode` 强制要求 `-source pattern -inject log`，否则退出码 2；使用临时 identity/trust 目录，不打开 GDI、不调用 SendInput。
+- `nx-probe.exe` 使用与 Android 相同的 pinned TLS、配对码、QUIC 和 tile 解码路径；对发布版 `nx-host.exe` 实测 1920×1080、4 帧、538 tile 更新、7/7 输入回执、首末帧摘要不同、host 退出码 0。
 - Android `NxConnectionModel` 提供显式连接阶段（Connecting / Streaming / Failed / Disconnected / Background）、20 秒前端截止时间、失败分类与唯一恢复动作。
 - 失败处理：`bad-code` / `untrusted` 引导重新配对；`host-identity` 要求重新扫码；其余网络错误可重试；**绝不自动重连**。
 - 生命周期：切后台、Activity 销毁、断线时释放鼠标按键、滚轮、键盘修饰键和 QUIC 会话；旧 attempt 的 `streaming` / `error` / `closed` / frame / input 回执不会覆盖新会话。
 
 ### 3.2 自动化覆盖
 
+- Go Linux：`go vet ./...`、`go test ./...` 通过；Windows 交叉 `vet` / `build` 通过，8 个交叉编译测试二进制在 Windows 本机全部 PASS。
+- `nx-probe` 合成源端到端：4 帧、538 tile 更新、动态摘要、7/7 输入回执，全程不抓屏、不调用 SendInput。
 - `NxConnectionTest` 10 项：连接成功、超时、错误分类、重试、旧 attempt 隔离、后台、断开、持久化时机等。
 - `NxTest` 7 项：NX 二维码载荷解析、地址/指纹校验等。
 - Windows 176 项测试覆盖 NX 配对载荷、Tailscale 地址校验、sidecar 状态清理、VDD 载荷校验、显示快照等不触碰显示拓扑的逻辑。

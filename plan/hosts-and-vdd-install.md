@@ -54,8 +54,8 @@
 
 - Windows：**1.4.0 候选**
   - 发布目录 `C:\dev\NightDesk\artifacts\win-x64-1.4.0`
-  - `NightDesk.exe`：大小 `201832196`，SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`，ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`
-  - `nx-host.exe`：大小 `7895040`，SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`，版本 `nx-host 0.1.0`
+  - `NightDesk.exe`：大小 `201832196`，SHA-256 `F4C448970703BB489E3A762596A59AEA06E688ED39CC505128B01CF4B7864EF2`，ProductVersion `1.4.0+fff73bb2b823f52f86f8807a9f0a59c6e3283ebd`
+  - `nx-host.exe`：大小 `7938048`，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，版本 `nx-host 0.2.0`
   - 176 项 Release 测试通过，0 警告 / 0 错误。
   - 必须通过 `tools\publish-windows.ps1` 发布；两个 EXE 必须同目录。
 - Android：**1.0.4 / versionCode 5**
@@ -70,4 +70,4 @@
 - `recovery.json` 仍存在；唯一活动源为 Parsec `\\.\DISPLAY6`，无活动物理输出。
 - 禁止退出/重启桌面、执行显示切换、恢复快照、VDD 增删，或在生产桌面运行真实 `nx-host.exe` 抓屏/SendInput。
 - 真正“驱动缺失时自动安装”的端到端验收需要干净 Windows 机器/VM；本机不能安全卸载现有驱动。
-- 真实 GDI 抓屏、SendInput、Android 真机 tailnet 和防火墙验收仍未完成；详细恢复步骤见 `docs/20261027-035456-remote-control-stage-6-packaging-handoff.md`。
+- 阶段 7 安全端到端探针已通过（合成源、日志输入、7/7 回执）；真实 GDI 抓屏、SendInput、Android 真机 tailnet 和防火墙验收仍未完成；详细恢复步骤见 `docs/20261027-041844-remote-control-stage-7-safe-e2e-probe-handoff.md`。
