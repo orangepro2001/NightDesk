@@ -91,6 +91,27 @@ func clientTLS(id tls.Certificate, host string, hosts *trust.Store) (*tls.Config
 	}, pin
 }
 
+// pinnedClientTLS requires the host certificate to match expected exactly. It
+// never records or learns a fingerprint, so a mobile pairing flow can reject a
+// substituted host before sending the pairing code.
+func pinnedClientTLS(id tls.Certificate, expected string) *tls.Config {
+	return &tls.Config{
+		Certificates:       []tls.Certificate{id},
+		InsecureSkipVerify: true, // replaced by the exact fingerprint comparison below
+		VerifyPeerCertificate: func(raw [][]byte, _ [][]*x509.Certificate) error {
+			if len(raw) == 0 {
+				return errors.New("host sent no certificate")
+			}
+			if trust.Fingerprint(raw[0]) != expected {
+				return ErrHostChanged
+			}
+			return nil
+		},
+		NextProtos: []string{alpn},
+		MinVersion: tls.VersionTLS13,
+	}
+}
+
 // pinRecorder holds the fingerprint seen for a not-yet-pinned host so it can be
 // saved after the handshake, keeping disk I/O off the connection's fast path.
 type pinRecorder struct {

@@ -49,6 +49,30 @@ func Dial(ctx context.Context, addr string, id tls.Certificate, hosts *trust.Sto
 	return &Client{conn: conn, ctrl: ctrl}, nil
 }
 
+// DialPinned connects only if the host certificate matches expectedFingerprint.
+// Unlike Dial, it never performs trust-on-first-use and never writes a pin, so
+// callers that obtained the fingerprint from a QR code can verify it directly.
+func DialPinned(ctx context.Context, addr string, id tls.Certificate, expectedFingerprint, password string) (*Client, error) {
+	expected, err := trust.NormalizeFingerprint(expectedFingerprint)
+	if err != nil {
+		return nil, err
+	}
+	conn, err := quic.DialAddr(ctx, addr, pinnedClientTLS(id, expected), quicConfig())
+	if err != nil {
+		return nil, err
+	}
+	ctrl, err := conn.OpenStreamSync(ctx)
+	if err != nil {
+		conn.CloseWithError(0, "")
+		return nil, err
+	}
+	if err := proto.WriteHello(ctrl, password); err != nil {
+		conn.CloseWithError(0, "")
+		return nil, err
+	}
+	return &Client{conn: conn, ctrl: ctrl}, nil
+}
+
 func (c *Client) Close() { c.conn.CloseWithError(0, "") }
 
 // SendInput sends one user action.
@@ -60,9 +84,15 @@ func (c *Client) SendInput(in proto.Input) error {
 
 // SendText commits literal Unicode text (not a key sequence).
 func (c *Client) SendText(text string) error {
+	return c.SendTextOp(0, text)
+}
+
+// SendTextOp commits literal Unicode text with an operation ID so the host can
+// deduplicate retries and return a receipt. An opID of zero is fire-and-forget.
+func (c *Client) SendTextOp(opID uint64, text string) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	return proto.WriteText(c.ctrl, 0, text)
+	return proto.WriteText(c.ctrl, opID, text)
 }
 
 // RemoteAddr is the peer address of the session, for display.

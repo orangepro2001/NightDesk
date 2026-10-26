@@ -449,3 +449,47 @@ func TestLargeFirstFrameIsNotCancelledForever(t *testing.T) {
 		t.Fatal("the full first frame never arrived: it is cancelled and resent before it can finish")
 	}
 }
+
+func TestDialPinnedRejectsChangedHost(t *testing.T) {
+	viewerID, hostID, otherID := identity(t), identity(t), identity(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ln, err := Listen("127.0.0.1:0", hostID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	go func() {
+		conn, err := ln.Accept(ctx)
+		if err == nil {
+			_ = Serve(ctx, conn, newFakeSource(64, 64), &fakeInjector{}, proto.NewDedup(), Options{
+				Check: func(_, _, _ string) (trust.Verdict, error) { return trust.Allowed, nil },
+			})
+		}
+	}()
+
+	client, err := DialPinned(ctx, ln.Addr().String(), viewerID, fp(hostID), "")
+	if err != nil {
+		t.Fatalf("DialPinned with correct fingerprint: %v", err)
+	}
+	client.Close()
+
+	ln2, err := Listen("127.0.0.1:0", otherID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln2.Close()
+	go func() {
+		_, _ = ln2.Accept(ctx)
+	}()
+	_, err = DialPinned(ctx, ln2.Addr().String(), viewerID, fp(hostID), "123456")
+	if err == nil || !errors.Is(err, ErrHostChanged) {
+		t.Fatalf("DialPinned changed host = %v, want ErrHostChanged", err)
+	}
+}
+
+func TestDialPinnedRejectsMalformedFingerprint(t *testing.T) {
+	if _, err := DialPinned(context.Background(), "127.0.0.1:1", identity(t), "not-a-fingerprint", ""); err == nil {
+		t.Fatal("malformed fingerprint accepted")
+	}
+}

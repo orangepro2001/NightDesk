@@ -16,6 +16,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -24,6 +25,21 @@ import (
 func Fingerprint(der []byte) string {
 	sum := sha256.Sum256(der)
 	return hex.EncodeToString(sum[:])
+}
+
+// NormalizeFingerprint accepts a SHA-256 certificate fingerprint entered by a
+// human (upper or lower case, with optional colon or ASCII-space separators)
+// and returns the canonical lower-case 64-character hex form.
+func NormalizeFingerprint(text string) (string, error) {
+	text = strings.ToLower(strings.TrimSpace(text))
+	text = strings.NewReplacer(":", "", " ", "").Replace(text)
+	if len(text) != sha256.Size*2 {
+		return "", errors.New("fingerprint must be 64 hexadecimal characters")
+	}
+	if _, err := hex.DecodeString(text); err != nil {
+		return "", errors.New("fingerprint must be 64 hexadecimal characters")
+	}
+	return text, nil
 }
 
 // Identity loads the self-signed certificate stored in dir/identity.pem,
