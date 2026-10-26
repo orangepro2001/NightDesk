@@ -21,6 +21,8 @@ void Check(bool condition, string name) { if (!condition) throw new Exception("F
 void Reject(Action action, string name) { try { action(); } catch (ArgumentException) { Check(true, name); return; } throw new Exception("FAIL: " + name); }
 void RejectUnauthorized(Action action, string name) { try { action(); } catch (UnauthorizedAccessException) { Check(true, name); return; } throw new Exception("FAIL: " + name); }
 Check(new DisplayMode(1920,1080,60).Validate() == new DisplayMode(1920,1080,60), "valid display mode");
+var mainXaml = FindRepoFile(Path.Combine("src", "NightDesk", "MainWindow.xaml"));
+Check(!File.ReadAllText(mainXaml).Contains("`r`n", StringComparison.Ordinal), "XAML has no literal escaped newline sequence");
 Reject(() => new DisplayMode(0,1080,60).Validate(), "reject zero width");
 Reject(() => new DisplayMode(1920,1080,0).Validate(), "reject zero refresh");
 Reject(() => new DisplayMode(20000,1080,60).Validate(), "reject huge mode");
@@ -494,6 +496,19 @@ static bool WaitUntil(Func<bool> condition, TimeSpan timeout)
         Thread.Sleep(25);
     }
     return condition();
+}
+
+static string FindRepoFile(string relativePath)
+{
+    foreach (var start in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+    {
+        for (var directory = new DirectoryInfo(start); directory is not null; directory = directory.Parent)
+        {
+            var candidate = Path.Combine(directory.FullName, relativePath);
+            if (File.Exists(candidate)) return candidate;
+        }
+    }
+    throw new FileNotFoundException("Repository file not found.", relativePath);
 }
 
 static bool ProcessHasExited(int pid)

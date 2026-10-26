@@ -70,7 +70,8 @@
      <TextBlock Text="显示器可填 primary、从 0 开始的索引或 \\.\\DISPLAYn。生产环境请监听 Tailscale 地址（例如 100.x.y.z:7000），不要直接暴露公网 UDP。" Foreground="#8FA79A" FontSize="12" Margin="0,8,0,0"/>
      <WrapPanel Margin="0,14,0,0">
       <Button x:Name="NxEnableButton" Click="NxEnable_Click" Content="启用低带宽远控"/>
-      <Button x:Name="NxTailscaleButton" Click="NxTailscale_Click" Content="填入 Tailscale 地址" Style="{StaticResource Secondary}"/>`r`n      <Button x:Name="NxPairButton" Click="NxPair_Click" Content="生成配对二维码" Style="{StaticResource Secondary}" IsEnabled="False"/>
+      <Button x:Name="NxTailscaleButton" Click="NxTailscale_Click" Content="填入 Tailscale 地址" Style="{StaticResource Secondary}"/>
+      <Button x:Name="NxPairButton" Click="NxPair_Click" Content="生成配对二维码" Style="{StaticResource Secondary}" IsEnabled="False"/>
       <Button x:Name="NxRefreshButton" Click="NxRefresh_Click" Content="刷新设备" Style="{StaticResource Secondary}" IsEnabled="False"/>
      </WrapPanel>
      <Border Background="#101815" CornerRadius="8" Padding="14" Margin="0,14,0,0"><StackPanel>
