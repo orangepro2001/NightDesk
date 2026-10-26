@@ -2,15 +2,17 @@
 
 更新日期：2026-10-27（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：go-nx 远程控制阶段 5（Android 连接生命周期与可恢复失败）、Windows `nx-host.exe` sidecar、Android 多主机管理、Parsec VDD 随包安装，以及现场显示安全门禁。
+本轮范围：go-nx 远程控制阶段 6（Windows 发布包完整性与 1.4.0）、阶段 5 Android 连接生命周期、`nx-host.exe` sidecar、Android 多主机管理、Parsec VDD 随包安装，以及现场显示安全门禁。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
-| Windows 产物 | `C:\dev\NightDesk\artifacts\win-x64-1.3.1\NightDesk.exe`，ProductVersion `1.3.1` |
-| Windows 大小 / SHA-256 | `201766660` 字节 / `04AAFCF79470AAE0CE7E2894A2E4177B9A37E220BB750470EA86B98CF394C8F0` |
-| 运行中程序 | PID **13816**，ProductVersion **1.2.0**，`C:\Users\pixel\Desktop\NightDesk.exe`，尚未替换 |
+| 代码基线 | `40355ae239d98961951ef2ca7de10f5ff1fb253a` |
+| Windows 候选目录 | `C:\dev\NightDesk\artifacts\win-x64-1.4.0`，必须同时包含 `NightDesk.exe` 与 `nx-host.exe` |
+| Windows `NightDesk.exe` | `201832196` 字节，SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`，ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a` |
+| Windows `nx-host.exe` | `7895040` 字节，SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`，`-version` 为 `nx-host 0.1.0` |
+| 运行中程序 | PID **13816**，ProductVersion **1.3.1**，`C:\Users\pixel\Desktop\NightDesk.exe`；生产目录缺少 `nx-host.exe`，不能提供完整 NX 数据面 |
 | Android 已发布版本 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，versionCode **5** / versionName **1.0.4** |
 | Android 已发布大小 / SHA-256 | `6991035` 字节 / `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436` |
 | Android 阶段 5 候选 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，versionCode **7** / versionName **1.1.0**，**未发布** |
@@ -36,7 +38,7 @@
 | Windows Release 测试 | **176 项通过** | 输出 `176 tests passed. No display state changed.`；测试未创建、删除或切换显示器 |
 | Windows Release 构建 | **通过** | `0 个警告 / 0 个错误` |
 | VDD 载荷测试 | **通过** | 确认 EmbeddedResource 存在、可提取、大小与 SHA-256 正确、签名主体为 `Parsec Cloud, Inc.`；篡改与缺失载荷均被拒绝 |
-| Windows 只读诊断 | **通过** | `artifacts\diag-1.3.1.json` 报告 `vddPayloadEmbedded=true`、载荷 `517256` 字节、驱动版本 `0.45` |
+| Windows 发布完整性 | **通过** | `tools\publish-windows.ps1` 从全新 staging 目录发布，断言 `NightDesk.exe` 与 `nx-host.exe` 同时存在，并通过 `nx-host -version` 冒烟检查 |
 | Android JVM 单测 | **26 项通过** | `CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed` |
 | Android 仪器测试 | **4 项通过** | `HostStoreInstrumentedTest: OK (3 tests)`、`UpdateFlowInstrumentedTest: OK (1 test)`；设备 `emulator-5580` |
 | Android 阶段 5 构建 | **通过** | Release / Debug / AndroidTest APK，versionCode 7 / versionName 1.1.0；Lint `0 errors / 22 warnings` |
@@ -60,7 +62,7 @@ adb -s emulator-5580 shell am instrument -w \
   dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-## 3. go-nx 远程控制（阶段 1-5）
+## 3. go-nx 远程控制（阶段 1-6）
 
 ### 3.1 已实现并自动验证
 
@@ -153,20 +155,20 @@ adb -s emulator-5580 shell am instrument -w \
 
 当前机器已有 Parsec VDD，且现场依赖其中一个虚拟输出，不能为了测试卸载/重装驱动。因此下列项目必须在干净 Windows 10/11 x64 虚拟机或可回滚测试机上执行：
 
-- [ ] 未安装 Parsec VDD 的干净系统直接运行 1.3.1。
+- [ ] 未安装 Parsec VDD 的干净系统直接运行 1.4.0。
 - [ ] 确认 UAC 出现，授权后安装成功，设备管理器中可见 `Parsec Virtual Display Adapter`，无需手工下载安装器。
 - [ ] 拒绝 UAC 后程序仍可启动；同一次用户环境再次启动不重复弹窗；点击“安装 Parsec VDD 驱动”可重试。
 - [ ] 安装器返回非零或超时后界面给出明确错误，且不进入可用状态。
-- [ ] 已安装驱动的系统升级/启动 1.3.1 时不会重装或替换驱动。
+- [ ] 已安装驱动的系统升级/启动 1.4.0 时不会重装或替换驱动。
 - [ ] 在无网络环境运行，确认内嵌安装器仍可使用（安装器自身若需联网组件，需记录实际行为）。
 
 ## 6. 当前桌面现场安全状态
 
-- 运行中的仍是 PID **13816 / 1.2.0**，不得强杀、退出或直接替换。
+- 运行中的仍是 PID **13816 / 1.3.1**；生产目录没有 `nx-host.exe`，当前没有 `nx-host` 进程。不得强杀、退出或直接替换。
 - `%LOCALAPPDATA%\NightDesk\recovery.json` 仍存在（352 字节，最后写入 `2026/10/27 00:10:30`）。
 - 最近只读诊断显示唯一活动源为 `\\.\DISPLAY6`（Parsec VDD），没有确认安全的物理输出。
 - 因此本轮**没有**执行 `off` / `on` / `toggle` / `add` / `remove` / `restore`，没有修改显示拓扑、没有卸载/重装 VDD，也没有重启桌面进程，更没有在生产桌面运行真实 `nx-host.exe` 抓屏或 SendInput。
-- 1.3.1 和阶段 5 APK 只保留在 artifacts，必须等物理显示恢复、快照可验证后，再按交接文档受控部署。
+- 1.4.0 和阶段 5 APK 只保留在 artifacts，必须等物理显示恢复、快照可验证后，再按交接文档受控部署；部署 1.4.0 时两个 EXE 必须同目录。
 
 ## 7. 人工验收清单（硬件相关，尚未执行）
 
@@ -204,7 +206,7 @@ adb -s emulator-5580 shell am instrument -w \
 
 ### E. Tailscale HTTPS、扫码绑定与受信任设备
 
-- [ ] 部署 1.3.1 后确认远程地址为当前节点的 `https://<node>.ts.net/`。
+- [ ] 部署 1.4.0 后确认远程地址为当前节点的 `https://<node>.ts.net/`。
 - [ ] 点击“扫描二维码绑定”，确认票据 5 分钟内有效且二维码不包含可见令牌。
 - [ ] Android 扫码成功；桌面设备列表出现设备名与绑定时间；Android 重启后仍可控制。
 - [ ] 同一二维码再次配对失败；超过 5 分钟后配对失败。
@@ -223,7 +225,7 @@ adb -s emulator-5580 shell am instrument -w \
 
 ### G. NX 远程控制端到端（需独立测试机与真机）
 
-- [ ] 在独立 Windows 测试机部署 1.3.1 与匹配的 `nx-host.exe`，确认 sidecar 可启动且有日志。
+- [ ] 在独立 Windows 测试机部署同目录的 `NightDesk.exe` 与 `nx-host.exe`（1.4.0），确认 sidecar 可启动且有日志。
 - [ ] 桌面“扫描二维码绑定”生成 NX 配对码，Android 真机通过 tailnet 扫码。
 - [ ] 确认首帧、tile 差分、滚动、点击、右键、组合键和 Unicode 文本可用。
 - [ ] 验证错误配对码、二维码过期、证书指纹变化、主机锁定、另一台设备接管和断网重连。
@@ -248,7 +250,7 @@ adb -s emulator-5580 shell am instrument -w \
 
 - Android 1.0.4 已实现多主机、扫码绑定、永久设备令牌、独立更新源，并完成远端构建与仪器测试；物理真机联调仍需人工验收。
 - Android 1.1.0 阶段 5 候选已构建并通过 26 项 JVM 单测、4 项仪器测试和模拟器冒烟，但**未发布**；真实 Windows 抓屏、SendInput 和真机 tailnet **未验收**。
-- Windows 1.3.1 已构建、测试并携带 VDD 安装器，但**尚未替换运行中的 1.2.0**。
+- Windows 1.4.0 已构建、测试并携带 VDD 安装器与 `nx-host.exe`，但**尚未替换生产中的 1.3.1**。生产目录缺少 sidecar，不能把当前生产版本视为完整 NX 发布。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
 - go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不是通用远程桌面，不等同于 Sunshine/Parsec 视频串流。
 - 应用不提供任意 shell、文件访问或通用桌面控制接口。

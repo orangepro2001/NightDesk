@@ -2,7 +2,7 @@
 
 ## 状态
 
-**已完成。** Windows 1.3.1 与 Android 1.0.4 均已构建并通过对应验证。
+**基础功能已完成。** Windows 当前候选为 1.4.0，Android 1.0.4 已发布，Android 1.1.0 阶段 5 为未发布候选。
 
 ## 需求
 
@@ -52,11 +52,12 @@
 
 ## 版本与产物
 
-- Windows：**1.3.1**
-  - `C:\dev\NightDesk\artifacts\win-x64-1.3.1\NightDesk.exe`
-  - 大小 `201766660`
-  - SHA-256 `04AAFCF79470AAE0CE7E2894A2E4177B9A37E220BB750470EA86B98CF394C8F0`
-  - 115 项 Release 测试通过，0 警告 / 0 错误。
+- Windows：**1.4.0 候选**
+  - 发布目录 `C:\dev\NightDesk\artifacts\win-x64-1.4.0`
+  - `NightDesk.exe`：大小 `201832196`，SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`，ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`
+  - `nx-host.exe`：大小 `7895040`，SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`，版本 `nx-host 0.1.0`
+  - 176 项 Release 测试通过，0 警告 / 0 错误。
+  - 必须通过 `tools\publish-windows.ps1` 发布；两个 EXE 必须同目录。
 - Android：**1.0.4 / versionCode 5**
   - `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`
   - 大小 `6991035`
@@ -65,7 +66,8 @@
 
 ## 风险与现场约束
 
-- 运行中进程为 PID **22708** / ProductVersion **1.2.0**；1.3.1 未替换现场程序。
+- 运行中进程为 PID **13816** / ProductVersion **1.3.1**；生产目录缺少 `nx-host.exe`，当前也没有 `nx-host` 进程。1.4.0 未替换现场程序。
 - `recovery.json` 仍存在；唯一活动源为 Parsec `\\.\DISPLAY6`，无活动物理输出。
-- 禁止退出/重启桌面、执行显示切换、恢复快照或 VDD 增删。
+- 禁止退出/重启桌面、执行显示切换、恢复快照、VDD 增删，或在生产桌面运行真实 `nx-host.exe` 抓屏/SendInput。
 - 真正“驱动缺失时自动安装”的端到端验收需要干净 Windows 机器/VM；本机不能安全卸载现有驱动。
+- 真实 GDI 抓屏、SendInput、Android 真机 tailnet 和防火墙验收仍未完成；详细恢复步骤见 `docs/20261027-035456-remote-control-stage-6-packaging-handoff.md`。

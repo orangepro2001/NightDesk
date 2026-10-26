@@ -8,7 +8,7 @@
 - Remote: `git@github.com:orangepro2001/NightDesk.git`.
 - Branch: `main`.
 - Initial import: `b1855e4 chore: initial NightDesk source import`.
-- Current code baseline before this documentation handoff: `a0746dc03b2c45859bc5bd77bd6154fbed7f32af fix(android): make remote connection recovery explicit`.
+- Current code baseline: `40355ae239d98961951ef2ca7de10f5ff1fb253a fix(desktop): ship nx-host with the published app`.
 - This is a Git repository; the earlier note saying otherwise was stale.
 - `artifacts/` is intentionally ignored and is not committed; binaries are local delivery evidence, not source.
 
@@ -17,7 +17,7 @@
 - Host has Parsec VDD 0.45 installed, AMD graphics and GameViewer VDD.
 - Last recorded read-only diagnostic (`diagnostics.json`) shows only `\\.\DISPLAY6` (Parsec Virtual Display Adapter) as an active source; no active physical output was confirmed there.
 - `C:\Users\pixel\AppData\Local\NightDesk\recovery.json` exists (352 bytes, last write `2026/10/27 00:10:30`).
-- The running desktop process is PID **13816**, product version **1.2.0**, path `C:\Users\pixel\Desktop\NightDesk.exe`, started `2026/10/27 00:07:24`.
+- The running desktop process is PID **13816**, product version **1.3.1**, path `C:\Users\pixel\Desktop\NightDesk.exe`, started `2026/10/27 00:07:24`. The production directory has no `nx-host.exe` and no `nx-host` process is running.
 - Do not exit/restart/replace that process, restore a snapshot, toggle displays, add/remove VDDs, install/uninstall display drivers, or run real `nx-host.exe` capture/SendInput on the production desktop until a physical display is available and the snapshot can be verified.
 - A later read-only WMI query listed an AMD adapter, but WMI resolution/status is not proof that the physical output topology is safe. Treat the recovery snapshot as authoritative until independently verified.
 - Tailscale node: `minipc-xoh4t.tail9f7f1f.ts.net`; desktop remote UI is `https://minipc-xoh4t.tail9f7f1f.ts.net/`. Serve is tailnet-only; Funnel is not enabled.
@@ -28,7 +28,7 @@
 - Size: **517256** bytes.
 - SHA-256: `e23332448fdaf5aa017cb308db5ef6855fac526a7ded05d80c039404126d5362`.
 - Signer subject: `CN="Parsec Cloud, Inc."`.
-- The installer is embedded in the 1.3.1 single-file EXE as `NightDesk.Assets.vdd.parsec-vdd-0.45.0.0.exe`.
+- The installer is embedded in the 1.4.0 single-file EXE as `NightDesk.Assets.vdd.parsec-vdd-0.45.0.0.exe`.
 - Startup probes `VddClient`; if the driver interface is unavailable, it extracts the embedded installer to `%LOCALAPPDATA%\NightDesk\driver\` and starts it with `runas` + `/S`.
 - The file is rejected unless size, SHA-256 and signer subject match. Tampered or missing payloads never execute.
 - Automatic installation is attempted only once per user; the UI's manual install button remains available for retry.
@@ -47,6 +47,8 @@
 - Important limit: this is a low-bandwidth lossless tile viewer for static or low-dynamic desktops. It does not provide audio, video codecs, clipboard, file transfer, multi-monitor switching, dynamic bitrate or game/video quality.
 - Tailscale Serve cannot proxy the QUIC/UDP data plane; Android must reach the Windows sidecar directly over the tailnet/UDP path.
 - Windows tests include `NxHostOptions`, JSON protocol, QR validation, sidecar lifecycle, stale-state cleanup and a fake sidecar; real GDI/SendInput remains unverified.
+- Packaging regression: `CopyToOutputDirectory` alone did not copy `nx-host.exe` into the single-file publish output. The 1.4.0 csproj adds `CopyToPublishDirectory=PreserveNewest` and `ExcludeFromSingleFile=true`.
+- `tools/publish-windows.ps1` publishes into a fresh staging directory and fails unless both `NightDesk.exe` and `nx-host.exe` exist; it also runs `nx-host.exe -version`. Never ship only the main EXE.
 
 ## Android client
 
@@ -85,7 +87,9 @@
 
 ## Other current facts
 
-- Windows 1.3.1 artifact: `artifacts\win-x64-1.3.1\NightDesk.exe`, size `201766660`, SHA-256 `04AAFCF79470AAE0CE7E2894A2E4177B9A37E220BB750470EA86B98CF394C8F0`.
+- Windows 1.4.0 candidate directory: `artifacts\win-x64-1.4.0`.
+- `NightDesk.exe`: size `201832196`, SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`, ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`.
+- `nx-host.exe`: size `7895040`, SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`, version `nx-host 0.1.0`.
 - Release tests: **176 passed**, no display mutation.
 - Release build: **0 warnings / 0 errors**.
 - `C:\dev\NightDesk` is a Git repository with remote `origin`; do not treat local artifact hashes as proof of end-to-end remote-control acceptance.

@@ -1,6 +1,6 @@
 # NightDesk design
 
-更新时间：2026-10-26（Asia/Seoul）
+更新时间：2026-10-27（Asia/Seoul）
 
 ## Product scope
 
@@ -15,7 +15,7 @@
 
 ## VDD provisioning
 
-- 官方 Parsec VDD 0.45 安装器内嵌在 1.3.1 单文件 EXE 中。
+- 官方 Parsec VDD 0.45 安装器内嵌在 1.4.0 单文件 EXE 中。
 - 启动探测设备接口；缺失时提取并执行 `runas` + `/S`。
 - 执行前强制校验 `517256` 字节、SHA-256 `e233...5362` 和签名主体 `Parsec Cloud, Inc.`。
 - 每用户仅自动尝试一次；UAC 取消或失败不会反复弹窗。UI 提供手动重试。
@@ -37,13 +37,14 @@
 - Keystore AES-GCM 加密全部资料；令牌不明文落盘。
 - 更新源与控制源独立；更新清单、APK 大小、SHA-256 和签名均校验后交系统安装器。
 - 构建、lint、仪器测试和模拟器调试只在 SSH AI 上进行。
+- go-nx 数据面使用独立 Go `nx-host.exe` sidecar；它不能并入 WPF single-file 主程序，发布目录必须同时包含两个 EXE。
 
 ## Verification
 
-- Windows 1.3.1：115 项 Release 测试通过，0 警告/0 错误，未改变显示状态。
-- Android 1.0.4：多主机仪器测试 3 项通过；更新流两条分支已在 API 35 模拟器验证；线上 feed 已验证。
+- Windows 1.4.0：176 项 Release 测试通过，0 警告/0 错误，未改变显示状态。`tools\publish-windows.ps1` 从全新 staging 目录发布并断言 `NightDesk.exe` 与 `nx-host.exe` 同时存在。
+- Android 1.0.4：多主机仪器测试 3 项通过；更新流两条分支已在 API 35 模拟器验证；线上 feed 已验证。阶段 5 候选另有 26 项 JVM 单测和 4 项仪器测试通过，但尚未发布。
 - 不自动化执行真实显示切换、恢复快照、VDD 增删或驱动安装。
 
 ## Deployment constraint
 
-现场仍有 `recovery.json`，活动源只有 Parsec `\\.\DISPLAY6`，没有活动物理输出，运行中 PID 22708 为 1.2.0。1.3.1 只能保留在 artifacts，待物理输出恢复并验证快照后再受控替换。
+现场仍有 `recovery.json`，活动源只有 Parsec `\\.\DISPLAY6`，没有确认活动的物理输出，运行中 PID 13816 为 1.3.1。生产目录缺少 `nx-host.exe`。1.4.0 只能保留在 artifacts，待物理输出恢复并验证快照后再受控替换；部署时必须同时复制两份 EXE。真实 GDI/SendInput/真机 tailnet 仍未验收。

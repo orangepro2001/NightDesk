@@ -4,16 +4,20 @@
 
 ## 当前交付状态（2026-10-27）
 
-- 桌面 **1.3.1** 已通过 **176 项 Release 测试**，Release 构建 0 警告 / 0 错误。自包含产物：`C:\dev\NightDesk\artifacts\win-x64-1.3.1\NightDesk.exe`，ProductVersion `1.3.1`，大小 `201766660` 字节，SHA-256 `04AAFCF79470AAE0CE7E2894A2E4177B9A37E220BB750470EA86B98CF394C8F0`。
-- 1.3.1 将官方 Parsec VDD 安装器内嵌在单文件 EXE 中。启动时未检测到 VDD 设备接口，会在用户授权 UAC 后自动安装；已安装时绝不重装或替换驱动。
-- **运行中的进程是 PID 13816 / ProductVersion 1.2.0**（`C:\Users\pixel\Desktop\NightDesk.exe`）。1.3.1 已构建但尚未替换现场程序。
+- 当前代码基线：`40355ae239d98961951ef2ca7de10f5ff1fb253a`（阶段 6：发布包同时携带 `nx-host.exe`）。
+- Windows **1.4.0 候选**已通过 **176 项 Release 测试**，Release 构建 0 警告 / 0 错误。发布目录 `C:\dev\NightDesk\artifacts\win-x64-1.4.0` 必须同时包含：
+  - `NightDesk.exe`：`201832196` 字节，SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`，ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`。
+  - `nx-host.exe`：`7895040` 字节，SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`，`-version` 输出 `nx-host 0.1.0`。
+- 发布必须使用 `tools\publish-windows.ps1`；脚本使用全新 staging 目录并断言两份文件都存在。只复制 `NightDesk.exe` 会导致 NX 远控不可用。
+- 1.4.0 仍将官方 Parsec VDD 安装器内嵌在单文件 EXE 中。启动时未检测到 VDD 设备接口，会在用户授权 UAC 后自动安装；已安装时绝不重装或替换驱动。
+- **生产现场**：PID **13816** 仍是 **1.3.1**（`C:\Users\pixel\Desktop\NightDesk.exe`），生产目录**没有** `nx-host.exe`，当前也没有 `nx-host` 进程。因此当前生产版本不能提供完整 NX 数据面；1.4.0 尚未部署。
 - `%LOCALAPPDATA%\NightDesk\recovery.json` 仍存在；最近只读诊断显示唯一活动源为 `\\.\DISPLAY6`（Parsec VDD），没有活动物理输出。**在物理显示器可恢复、快照可验证之前，不要退出/重启 NightDesk，也不要执行熄屏、点亮、恢复快照或 VDD 增删。**
 - Android **1.0.4**（versionCode 5）已发布到 AI 更新源，支持最多 20 台主机的保存、切换和删除：`C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`。
 - Android **1.1.0 阶段 5 候选**（versionCode 7，未发布）：新增 go-nx 固定证书 tile 查看器、触摸/滚轮/键盘/Unicode 输入、连接状态机、超时与重试、后台释放输入。产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，大小 `55058900`，SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`。已完成 26 项 JVM 单测、4 项仪器测试和模拟器冒烟；**真实 Windows 抓屏、SendInput、真机 tailnet 尚未验收**。
 
-## 运行（1.3.1 受控部署后）
+## 运行（1.4.0 受控部署后）
 
-发布程序：`C:\dev\NightDesk\artifacts\win-x64-1.3.1\NightDesk.exe`。这是 Windows x64 自包含发布，无需另装 .NET Runtime。需要已登录的 Tailscale Windows 客户端。
+发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.4.0`。必须把 `NightDesk.exe` 与 `nx-host.exe` 一起复制到同一目录；这是 Windows x64 自包含主程序，无需另装 .NET Runtime。需要已登录的 Tailscale Windows 客户端。
 
 1. **先关闭现有 ParsecVDisplay 管理器**。NightDesk 不会杀进程，也不会接管其它程序创建的屏幕。
 2. 在有物理显示器活动的 Windows **控制台用户会话**运行程序。Parsec / GameViewer 等控制台远控可使用；RDP 会话不支持切屏。
@@ -93,7 +97,7 @@ Kotlin 原生应用（`dev.nightdesk.android`，minSdk 29 / target 35，Views + 
 只读诊断（不创建/删除显示器）：
 
 ```powershell
-& 'C:\dev\NightDesk\artifacts\win-x64-1.3.1\NightDesk.exe' --diagnose --output 'C:\dev\NightDesk\diag-1.3.1.json'
+& 'C:\dev\NightDesk\artifacts\win-x64-1.4.0\NightDesk.exe' --diagnose --output 'C:\dev\NightDesk\diag-1.4.0.json'
 ```
 
 ## 开发 / 构建
@@ -104,7 +108,7 @@ Kotlin 原生应用（`dev.nightdesk.android`，minSdk 29 / target 35，Views + 
 $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 & $dotnet run --project 'C:\dev\NightDesk\tests\NightDesk.Tests\NightDesk.Tests.csproj' -c Release
 & $dotnet build 'C:\dev\NightDesk\src\NightDesk\NightDesk.csproj' -c Release
-& $dotnet publish 'C:\dev\NightDesk\src\NightDesk\NightDesk.csproj' -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o 'C:\dev\NightDesk\artifacts\win-x64-1.3.1'
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\dev\NightDesk\tools\publish-windows.ps1'
 ```
 
 测试入口是无额外 NuGet 测试框架的可执行断言程序，**用 dotnet run，不是 dotnet test**。当前 176 项通过；测试使用合成数据和隔离回调，不改显示配置，也不启用 Tailscale。

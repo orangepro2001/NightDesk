@@ -6,14 +6,17 @@
 
 ### Windows 桌面端
 
-- 版本：**1.3.1**
-- 产物：`C:\dev\NightDesk\artifacts\win-x64-1.3.1\NightDesk.exe`
-- 大小：`201766660` 字节
-- SHA-256：`04AAFCF79470AAE0CE7E2894A2E4177B9A37E220BB750470EA86B98CF394C8F0`
+- 代码基线：`40355ae239d98961951ef2ca7de10f5ff1fb253a`
+- 候选版本：**1.4.0**
+- 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.4.0`
+- `NightDesk.exe`：`201832196` 字节，SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`，ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`。
+- `nx-host.exe`：`7895040` 字节，SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`，`-version` 为 `nx-host 0.1.0`。
+- 两个 EXE 必须同目录部署；sidecar 被明确排除在 single-file 包之外。
+- 发布必须使用 `tools\publish-windows.ps1`。脚本发布到全新 staging 目录，断言两份文件存在并运行 sidecar 冒烟检查。
 - Release 测试：**176 项通过，未改变显示状态**
 - Release 构建：**0 警告 / 0 错误**
 - 已实现：熄屏/点亮、Parsec VDD 增删与分辨率/刷新率配置、防休眠、可修改全局快捷键、Tailscale HTTPS 远程控制、扫码配对、永久设备令牌、受信任设备管理、统一程序图标。
-- 1.3.1 已把官方 Parsec VDD 安装器作为 EmbeddedResource 打入单文件 EXE。启动检测不到 VDD 时，验证载荷后以 UAC + `/S` 自动安装；每个用户环境自动尝试一次，失败后可从 UI 手动重试。驱动已安装时绝不重装或替换。
+- 1.4.0 已把官方 Parsec VDD 安装器作为 EmbeddedResource 打入单文件 EXE。启动检测不到 VDD 时，验证载荷后以 UAC + `/S` 自动安装；每个用户环境自动尝试一次，失败后可从 UI 手动重试。驱动已安装时绝不重装或替换。
 - go-nx 远程数据面（阶段 1-5）已接入：
   - Windows 启动受 Job Object 监控的 `nx-host.exe` sidecar；
   - sidecar 采集单个显示器，发送 64×64 tile 差分；
@@ -64,8 +67,8 @@
 
 ## 现场安全状态（必须保持）
 
-- 当前运行进程：**PID 13816**，ProductVersion **1.2.0**，路径 `C:\Users\pixel\Desktop\NightDesk.exe`，启动时间 `2026/10/27 0:07:24`。
-- 1.3.1 已构建，但**尚未替换现场运行程序**。
+- 当前运行进程：**PID 13816**，ProductVersion **1.3.1**，路径 `C:\Users\pixel\Desktop\NightDesk.exe`，启动时间 `2026/10/27 0:07:24`。
+- 1.4.0 已构建，但**尚未替换现场运行程序**。生产目录没有 `nx-host.exe`，当前没有 `nx-host` 进程，因此生产 1.3.1 不能提供完整 NX 数据面。
 - `%LOCALAPPDATA%\NightDesk\recovery.json` **仍存在**（352 字节，最后写入 `2026/10/27 00:10:30`）。
 - 上次只读诊断：唯一活动源为 `\\.\DISPLAY6`（Parsec VDD）；不能据此认定物理输出已经安全恢复。
 - 在物理显示器恢复且恢复快照可安全验证之前，禁止：
@@ -86,13 +89,13 @@ $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 
 - 当前输出：`176 tests passed. No display state changed.`
 - 构建：`0 个警告 / 0 个错误`。
-- Windows 1.3.1 哈希与 ProductVersion 已复核。
+- Windows 1.4.0 两个 EXE 的大小、SHA-256 与 ProductVersion 已复核；发布脚本和 `nx-host.exe -version` 冒烟检查通过。
 - Android stage 5 JVM/仪器测试和 APK 哈希来自 AI 验证目录 `/home/tony/dev/nightdesk-android-stage5`。
 - 线上 manifest 仍是 versionCode 5 / 1.0.4，不能把阶段 5 的本地 APK 误报成已发布版本。
 
 ## 历史说明
 
 - 1.2.0 的现场进程来自此前的统一图标与远程控制归属修复；该进程保持运行。
-- 1.3.0 是 VDD 随包安装的中间构建，最终交付以 1.3.1 为准。
+- 1.3.0 是 VDD 随包安装的中间构建，1.3.1 是当时生产构建，当前 Windows 交付候选为 1.4.0。
 - 阶段 4 完成了固定证书查看器和基础输入；阶段 5 完成了连接失败可见、可重试和生命周期收口。
-- 旧版记录中的 PID 22708 / 115 项测试已过期，以本文和 `docs/HANDOFF.md` 为准。
+- 旧版记录中的 PID 22708 / 115 项测试 / 1.2.0 已过期，以本文和 `docs/HANDOFF.md` 为准。

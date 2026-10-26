@@ -35,6 +35,8 @@
 17. [done] Add the Android native viewer: pinned certificate pairing, tile rendering, touch/wheel/keyboard/Unicode input and explicit connection lifecycle.
 18. [done] Stage 5 Android lifecycle hardening: 20-second front-end deadline, retry/pair-again/rescan recovery, background input release and stale-callback isolation.
 19. [done] Stage 5 verification: Windows 176 tests, Android 26 JVM tests, 4 instrumented tests, lint/build and emulator UI smoke.
+20. [done] Stage 6 packaging fix: publish `nx-host.exe` beside the single-file `NightDesk.exe`, add a fresh-staging publish verifier, rebuild Windows 1.4.0 and re-verify the Android stage 5 candidate on AI.
+21. [done] Record the stage 6 packaging and recovery handoff in `docs/20261027-035456-remote-control-stage-6-packaging-handoff.md`.
 
 ## Verification invariants
 
@@ -55,7 +57,10 @@
 
 - Windows Release tests: **176 passed**; output says `176 tests passed. No display state changed.`
 - Windows Release build: **0 warnings / 0 errors**.
-- Windows artifact: `artifacts\win-x64-1.3.1\NightDesk.exe`, ProductVersion `1.3.1`, size `201766660`, SHA-256 `04AAFCF79470AAE0CE7E2894A2E4177B9A37E220BB750470EA86B98CF394C8F0`.
+- Windows candidate directory: `artifacts\win-x64-1.4.0`.
+- `NightDesk.exe`: ProductVersion `1.4.0+40355ae239d98961951ef2ca7de10f5ff1fb253a`, size `201832196`, SHA-256 `74DE6CF2B134A30AD2290FBB58827BC4FDE75BB7548F3856DFCE0ED04C465D6D`.
+- `nx-host.exe`: size `7895040`, SHA-256 `FFA6491BFC193BA91B40A506EB71239CBE93EA2918C05B6C171659ADB4D4A12C`, `-version` returns `nx-host 0.1.0`.
+- `tools\publish-windows.ps1` uses a fresh staging directory, requires both EXEs and runs a sidecar smoke check.
 - Android stage 5 JVM tests: `CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed`.
 - Android stage 5 instrumented tests: `HostStoreInstrumentedTest: OK (3 tests)` + `UpdateFlowInstrumentedTest: OK (1 test)` on `emulator-5580`.
 - Android stage 5 lint/build: `0 errors / 22 warnings`; emulator UI smoke screenshots captured.
@@ -64,8 +69,8 @@
 
 ## Remaining manual work
 
-- The production desktop process is **PID 13816**, ProductVersion `1.2.0`, `C:\Users\pixel\Desktop\NightDesk.exe`. Do not exit, restart or replace it until a physical display is available and the recovery snapshot can be verified.
-- After controlled deployment of 1.3.1, verify local status, Tailscale address, remote page, QR pairing, long-term token persistence, trusted-device revocation, display off/on/restore and hotkey behavior.
+- The production desktop process is **PID 13816**, ProductVersion `1.3.1`, `C:\Users\pixel\Desktop\NightDesk.exe`. Its directory does not contain `nx-host.exe`. Do not exit, restart or replace it until a physical display is available and the recovery snapshot can be verified.
+- After controlled deployment of 1.4.0, verify that `NightDesk.exe` and `nx-host.exe` are in the same directory, then check local status, Tailscale address, remote page, QR pairing, long-term token persistence, trusted-device revocation, display off/on/restore and hotkey behavior.
 - Verify real VDD add/remove with all other VDD managers closed; verify VDD auto-install on a machine where the driver is genuinely absent.
 - Real NX end-to-end acceptance requires an independent Windows test machine with recoverable display/input and an Android physical device:
   - GDI first frame and tile deltas;

@@ -1,6 +1,6 @@
 # NightDesk implementation TODO
 
-更新时间：2026-10-26（Asia/Seoul）
+更新时间：2026-10-27（Asia/Seoul）
 
 ## 1. Environment and driver research — done
 
@@ -59,15 +59,17 @@
 
 ## 8. Release verification — done
 
-- [x] Windows 1.3.1 Release build with 0 warnings / 0 errors.
-- [x] Windows Release suite: 115 passed; no display state changed.
-- [x] Windows 1.3.1 self-contained publish and read-only diagnostics.
+- [x] Windows 1.4.0 Release build with 0 warnings / 0 errors.
+- [x] Windows Release suite: 176 passed; no display state changed.
+- [x] Publish `NightDesk.exe` and `nx-host.exe` together through `tools\publish-windows.ps1`.
+- [x] Verify the sidecar smoke check and the final sizes/SHA-256.
 - [x] Android 1.0.4 AI build, instrumented multi-host tests and live-feed publication.
+- [x] Android stage 5 candidate rebuilt and re-tested on AI.
 - [x] README, HANDOFF, ACCEPTANCE, progress, findings and implementation-plan updates.
 
 ## Remaining manual acceptance (not code-completion blockers)
 
-- [ ] Controlled replacement of PID 22708 only after a physical display is available and `recovery.json` can be verified.
+- [ ] Controlled replacement of PID 13816 (currently 1.3.1, no sidecar beside it) only after a physical display is available and `recovery.json` can be verified. Deploy both 1.4.0 EXEs to the same directory.
 - [ ] Real display off/on/restore, hotkey and VDD add/remove with other VDD managers closed.
 - [ ] End-to-end QR pairing/revocation from a physical Android device and second Tailnet node.
 - [ ] True absent-driver VDD auto-install on a clean Windows machine/VM.
