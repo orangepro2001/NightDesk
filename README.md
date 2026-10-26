@@ -1,14 +1,15 @@
 # NightDesk · 屏幕与远程工作台
 
-原生 Windows 桌面应用：C# / WPF / Win32 API，不使用 Electron。提供中文界面、系统托盘、统一应用图标（EXE / 窗口 / 托盘 / Android 自适应图标）、Tailscale HTTPS 远程网页，以及原生 Kotlin Android 客户端。Android 支持扫码绑定、长期设备令牌、多主机管理和自动更新。
+原生 Windows 桌面应用：C# / WPF / Win32 API，不使用 Electron。提供中文界面、系统托盘、统一应用图标（EXE / 窗口 / 托盘 / Android 自适应图标）、Tailscale HTTPS 远程网页，以及原生 Kotlin Android 客户端。Android 支持扫码绑定、长期设备令牌、多主机管理、自动更新，以及基于 go-nx 协议内核的低带宽 tile 屏幕远控。
 
-## 当前交付状态（2026-10-26）
+## 当前交付状态（2026-10-27）
 
-- 桌面 **1.3.1** 已通过 **115 项 Release 测试**，Release 构建 0 警告 / 0 错误。自包含产物：`C:\dev\NightDesk\artifacts\win-x64-1.3.1\NightDesk.exe`，ProductVersion `1.3.1`，大小 `201766660` 字节，SHA-256 `04AAFCF79470AAE0CE7E2894A2E4177B9A37E220BB750470EA86B98CF394C8F0`。
+- 桌面 **1.3.1** 已通过 **176 项 Release 测试**，Release 构建 0 警告 / 0 错误。自包含产物：`C:\dev\NightDesk\artifacts\win-x64-1.3.1\NightDesk.exe`，ProductVersion `1.3.1`，大小 `201766660` 字节，SHA-256 `04AAFCF79470AAE0CE7E2894A2E4177B9A37E220BB750470EA86B98CF394C8F0`。
 - 1.3.1 将官方 Parsec VDD 安装器内嵌在单文件 EXE 中。启动时未检测到 VDD 设备接口，会在用户授权 UAC 后自动安装；已安装时绝不重装或替换驱动。
-- **运行中的进程是 PID 22708 / ProductVersion 1.2.0**（`C:\Users\pixel\Desktop\NightDesk.exe`）。1.3.1 已构建但尚未替换现场程序。
+- **运行中的进程是 PID 13816 / ProductVersion 1.2.0**（`C:\Users\pixel\Desktop\NightDesk.exe`）。1.3.1 已构建但尚未替换现场程序。
 - `%LOCALAPPDATA%\NightDesk\recovery.json` 仍存在；最近只读诊断显示唯一活动源为 `\\.\DISPLAY6`（Parsec VDD），没有活动物理输出。**在物理显示器可恢复、快照可验证之前，不要退出/重启 NightDesk，也不要执行熄屏、点亮、恢复快照或 VDD 增删。**
 - Android **1.0.4**（versionCode 5）已发布到 AI 更新源，支持最多 20 台主机的保存、切换和删除：`C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`。
+- Android **1.1.0 阶段 5 候选**（versionCode 7，未发布）：新增 go-nx 固定证书 tile 查看器、触摸/滚轮/键盘/Unicode 输入、连接状态机、超时与重试、后台释放输入。产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，大小 `55058900`，SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`。已完成 26 项 JVM 单测、4 项仪器测试和模拟器冒烟；**真实 Windows 抓屏、SendInput、真机 tailnet 尚未验收**。
 
 ## 运行（1.3.1 受控部署后）
 
@@ -58,6 +59,7 @@ Kotlin 原生应用（`dev.nightdesk.android`，minSdk 29 / target 35，Views + 
 - 状态刷新、熄屏、点亮/恢复、防休眠、虚拟屏增删。
 - 启动即检查更新、每 6 小时 WorkManager 检查、手动检查；下载后验证包名、版本、minSdk、大小、SHA-256 和签名，再交给系统安装器，不静默安装。
 - 控制源和更新源分离：控制地址来自扫码主机，更新源固定为 AI 服务。
+- 低带宽屏幕远控：扫码识别 `nightdesk-nx`，固定 Windows sidecar 证书，使用 QUIC + TLS 1.3 接收无损 tile 差分；支持单指拖动、双指滚动、右键、组合键和 Unicode 文本。不是视频/音频串流，不适合游戏或高动态画面。
 
 ### 下载与更新地址（仅 tailnet 内可访问）
 
@@ -74,6 +76,7 @@ Kotlin 原生应用（`dev.nightdesk.android`，minSdk 29 / target 35，Views + 
 - `nightdesk-1.0.2.apk` — versionCode 3，SHA-256 `d1f71eb1a58c6428739b69114bb17b924b5d965fb06fae42c1e228cab1eedcb3`
 - `nightdesk-1.0.3.apk` — versionCode 4，SHA-256 `ece0bb1e7bec11862d8ef7db89a9e82ee98bf56e9063a8b58c7cf33ef641a355`
 - `nightdesk-1.0.4.apk` — versionCode 5，大小 `6991035`，SHA-256 `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`
+- `nightdesk-1.1.0-stage5.apk` — versionCode 7，**阶段 5 候选，未发布到更新源**，大小 `55058900`，SHA-256 `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480`
 
 ## 恢复与故障排查
 
@@ -98,18 +101,20 @@ Kotlin 原生应用（`dev.nightdesk.android`，minSdk 29 / target 35，Views + 
 已通过 Scoop 安装 .NET SDK **10.0.402**。Android 工具链只在 SSH 主机 `AI` 上使用。
 
 ```powershell
-$dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\current\dotnet.exe'
+$dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 & $dotnet run --project 'C:\dev\NightDesk\tests\NightDesk.Tests\NightDesk.Tests.csproj' -c Release
 & $dotnet build 'C:\dev\NightDesk\src\NightDesk\NightDesk.csproj' -c Release
 & $dotnet publish 'C:\dev\NightDesk\src\NightDesk\NightDesk.csproj' -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o 'C:\dev\NightDesk\artifacts\win-x64-1.3.1'
 ```
 
-测试入口是无额外 NuGet 测试框架的可执行断言程序，**用 dotnet run，不是 dotnet test**。当前 115 项通过；测试使用合成数据和隔离回调，不改显示配置，也不启用 Tailscale。
+测试入口是无额外 NuGet 测试框架的可执行断言程序，**用 dotnet run，不是 dotnet test**。当前 176 项通过；测试使用合成数据和隔离回调，不改显示配置，也不启用 Tailscale。
 
 Android 构建与发布、更新源运维、签名密钥保管和已知限制见 `docs\HANDOFF.md`。
 
 ## 文档
 
 - 架构、API、配对、多主机与安卓交接：[C:\dev\NightDesk\docs\HANDOFF.md](C:/dev/NightDesk/docs/HANDOFF.md)
+- go-nx 集成可行性：[C:\dev\NightDesk\docs\20261027-003801-go-nx-remote-control-integration-plan.md](C:/dev/NightDesk/docs/20261027-003801-go-nx-remote-control-integration-plan.md)
+- 阶段 5 连接生命周期与恢复：[C:\dev\NightDesk\docs\20261027-033356-remote-control-stage-5-lifecycle-handoff.md](C:/dev/NightDesk/docs/20261027-033356-remote-control-stage-5-lifecycle-handoff.md)
 - 人工验收：[C:\dev\NightDesk\docs\ACCEPTANCE.md](C:/dev/NightDesk/docs/ACCEPTANCE.md)
 - 第三方说明：[C:\dev\NightDesk\docs\THIRD-PARTY-NOTICES.txt](C:/dev/NightDesk/docs/THIRD-PARTY-NOTICES.txt)

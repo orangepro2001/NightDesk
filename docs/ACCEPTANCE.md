@@ -1,8 +1,8 @@
 # NightDesk 验收记录
 
-更新日期：2026-10-26（Asia/Seoul）  
-工作目录：`C:\dev\NightDesk`  
-本轮范围：Android 多主机管理、Parsec VDD 随安装包携带并在缺失时自动安装。
+更新日期：2026-10-27（Asia/Seoul）
+工作目录：`C:\dev\NightDesk`
+本轮范围：go-nx 远程控制阶段 5（Android 连接生命周期与可恢复失败）、Windows `nx-host.exe` sidecar、Android 多主机管理、Parsec VDD 随包安装，以及现场显示安全门禁。
 
 ## 1. 当前交付状态
 
@@ -10,11 +10,15 @@
 |---|---|
 | Windows 产物 | `C:\dev\NightDesk\artifacts\win-x64-1.3.1\NightDesk.exe`，ProductVersion `1.3.1` |
 | Windows 大小 / SHA-256 | `201766660` 字节 / `04AAFCF79470AAE0CE7E2894A2E4177B9A37E220BB750470EA86B98CF394C8F0` |
-| 运行中程序 | PID **22708**，ProductVersion **1.2.0**，`C:\Users\pixel\Desktop\NightDesk.exe`，尚未替换 |
-| Android 产物 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，versionCode **5** / versionName **1.0.4** |
-| Android 大小 / SHA-256 | `6991035` 字节 / `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436` |
+| 运行中程序 | PID **13816**，ProductVersion **1.2.0**，`C:\Users\pixel\Desktop\NightDesk.exe`，尚未替换 |
+| Android 已发布版本 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`，versionCode **5** / versionName **1.0.4** |
+| Android 已发布大小 / SHA-256 | `6991035` 字节 / `906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436` |
+| Android 阶段 5 候选 | `C:\dev\NightDesk\artifacts\android\nightdesk-1.1.0-stage5.apk`，versionCode **7** / versionName **1.1.0**，**未发布** |
+| 阶段 5 大小 / SHA-256 | `55058900` 字节 / `01734a26365b859c831a9ba7806ff1d133b96e0993061053bb2a60ab72caf480` |
+| 阶段 5 Debug APK | `artifacts\android\nightdesk-1.1.0-stage5-debug.apk`，`56886382` 字节，SHA-256 `042c9d37dffa86c7507ee8ab358415d46eb921cd55700328e8ef393034fc08aa` |
+| 阶段 5 AndroidTest APK | `artifacts\android\nightdesk-1.1.0-stage5-androidTest.apk`，`689645` 字节，SHA-256 `f9d11858d818aaa073f39fc404ea716af5043c2f6093bc0454b8ef52da1b4c36` |
 | Android 签名证书 SHA-256 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
-| AI 更新服务 | `nightdesk-update-feed.service` active / enabled；`/healthz` 返回 `ok` |
+| AI 更新服务 | `nightdesk-update-feed.service` active / enabled；`/healthz` 返回 `ok`；线上仍是 versionCode 5 / 1.0.4 |
 
 ### 在线地址（仅 tailnet 内可访问）
 
@@ -29,24 +33,68 @@
 
 | 检查 | 结果 | 说明 |
 |---|---|---|
-| Windows Release 测试 | **115 项通过** | 输出 `115 tests passed. No display state changed.`；测试未创建、删除或切换显示器 |
+| Windows Release 测试 | **176 项通过** | 输出 `176 tests passed. No display state changed.`；测试未创建、删除或切换显示器 |
 | Windows Release 构建 | **通过** | `0 个警告 / 0 个错误` |
 | VDD 载荷测试 | **通过** | 确认 EmbeddedResource 存在、可提取、大小与 SHA-256 正确、签名主体为 `Parsec Cloud, Inc.`；篡改与缺失载荷均被拒绝 |
 | Windows 只读诊断 | **通过** | `artifacts\diag-1.3.1.json` 报告 `vddPayloadEmbedded=true`、载荷 `517256` 字节、驱动版本 `0.45` |
-| Android 仪器测试 | **4 项通过** | `OK (4 tests)`；其中 `HostStoreInstrumentedTest` 3 项覆盖多主机持久化、切换、删除和令牌替换 |
-| Android 更新流程仪器测试 | **通过** | 使用 `-e updateOrigin https://tony-ai-pc-1.tail9f7f1f.ts.net` 运行，清单可达、版本/大小/SHA-256/路径校验通过 |
-| 线上更新清单 | **通过** | HTTP 200，versionCode `5` / 1.0.4 / `6991035` 字节，SHA-256 与本地 APK 一致 |
+| Android JVM 单测 | **26 项通过** | `CoreTest 9 + NxConnectionTest 10 + NxTest 7 = 26 passed` |
+| Android 仪器测试 | **4 项通过** | `HostStoreInstrumentedTest: OK (3 tests)`、`UpdateFlowInstrumentedTest: OK (1 test)`；设备 `emulator-5580` |
+| Android 阶段 5 构建 | **通过** | Release / Debug / AndroidTest APK，versionCode 7 / versionName 1.1.0；Lint `0 errors / 22 warnings` |
+| Android 模拟器 UI 冒烟 | **通过** | 主页与不可达地址超时界面截图：`artifacts\android\stage5-home.png`、`artifacts\android\stage5-offline-timeout.png` |
+| 线上更新清单 | **通过（仍为 1.0.4）** | HTTP 200，versionCode `5` / 1.0.4 / `6991035` 字节，SHA-256 与本地 1.0.4 APK 一致；阶段 5 未发布 |
 | 线上 APK HEAD | **通过** | HTTP 200，`Content-Length: 6991035`，`application/vnd.android.package-archive` |
 
-测试入口是不可用 `dotnet test` 替代的断言程序：
+Windows 测试入口是不可用 `dotnet test` 替代的断言程序：
 
 ```powershell
-$dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\current\dotnet.exe'
-& $dotnet run --project 'C:\dev\NightDesk\tests\NightDesk.Tests\NightDesk.Tests.csproj' -c Release
+$dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
+& $dotnet run --project 'C:\dev\NightDesk\tests\NightDesk.Tests\NightDesk.Tests.csproj' -c Release --no-restore
 & $dotnet build 'C:\dev\NightDesk\src\NightDesk\NightDesk.csproj' -c Release --no-restore
 ```
 
-## 3. Android 多主机管理
+Android 验证目录为 AI 主机上的 `/home/tony/dev/nightdesk-android-stage5`。完整仪器测试：
+
+```bash
+adb -s emulator-5580 shell am instrument -w \
+  -e updateOrigin https://tony-ai-pc-1.tail9f7f1f.ts.net \
+  dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+## 3. go-nx 远程控制（阶段 1-5）
+
+### 3.1 已实现并自动验证
+
+- Windows 以独立 `nx-host.exe` sidecar 提供数据面，WPF 通过 stdin/stdout JSON 行协议管理；sidecar 受 Job Object 约束，异常退出后清除陈旧的 running / ready 状态。
+- sidecar 使用 GDI 采集单个显示器，按 **64 × 64 tile 差分**发送；不是 H.264/HEVC/AV1 视频编码。
+- 传输使用 **QUIC + TLS 1.3**，Android 固定主机证书指纹；配对使用 6 位短期配对码，二维码包含 `nightdesk-nx` 载荷、Tailscale IPv4 地址和指纹。
+- Windows 输入通过 `SendInput` 注入鼠标移动、按键、滚轮、虚拟键和 Unicode 文本。
+- Android `NxConnectionModel` 提供显式连接阶段（Connecting / Streaming / Failed / Disconnected / Background）、20 秒前端截止时间、失败分类与唯一恢复动作。
+- 失败处理：`bad-code` / `untrusted` 引导重新配对；`host-identity` 要求重新扫码；其余网络错误可重试；**绝不自动重连**。
+- 生命周期：切后台、Activity 销毁、断线时释放鼠标按键、滚轮、键盘修饰键和 QUIC 会话；旧 attempt 的 `streaming` / `error` / `closed` / frame / input 回执不会覆盖新会话。
+
+### 3.2 自动化覆盖
+
+- `NxConnectionTest` 10 项：连接成功、超时、错误分类、重试、旧 attempt 隔离、后台、断开、持久化时机等。
+- `NxTest` 7 项：NX 二维码载荷解析、地址/指纹校验等。
+- Windows 176 项测试覆盖 NX 配对载荷、Tailscale 地址校验、sidecar 状态清理、VDD 载荷校验、显示快照等不触碰显示拓扑的逻辑。
+
+### 3.3 尚未验收（硬阻塞）
+
+以下项目**必须在独立 Windows 测试机 + Android 真机上执行**，不能使用本机 PID 13816 的生产桌面：
+
+- [ ] 真实 GDI 抓屏首帧、tile 差分、画面完整性与长期稳定性。
+- [ ] 真实 `SendInput`：鼠标移动/点击、滚轮、Unicode、组合键、修饰键释放。
+- [ ] Android 真机通过 tailnet 扫码连接，验证证书固定、错误配对码、二维码过期、另一台设备接管。
+- [ ] 断网、切后台、强制停止、Windows sidecar 崩溃后的恢复行为。
+- [ ] DPI 缩放、锁屏、显示器休眠、虚拟屏下的抓屏结果。
+- [ ] 记录首帧时间、稳态带宽、CPU、内存、输入回执延迟。
+
+### 3.4 明确不支持
+
+- 不是 Sunshine / Parsec 式视频串流，不支持音频、视频播放、游戏或高动态桌面。
+- 不支持多显示器切换、剪贴板、文件传输、动态码率和硬件编码。
+
+## 4. Android 多主机管理
 
 ### 已验证实现
 
@@ -65,13 +113,7 @@ $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\current\dotnet.exe'
 2. 同一 origin 再次保存时替换令牌且不增加主机数。
 3. 令牌不以明文写入 SharedPreferences。
 
-完整 Android 测试运行时若只执行 `am instrument` 而不传入 `updateOrigin`，更新端到端用例会按设计报告 `missing updateOrigin`。正确命令必须带：
-
-```bash
-adb -s emulator-5580 shell am instrument -w \
-  -e updateOrigin https://tony-ai-pc-1.tail9f7f1f.ts.net \
-  dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner
-```
+完整 Android 测试运行时若只执行 `am instrument` 而不传入 `updateOrigin`，更新端到端用例会按设计报告 `missing updateOrigin`。正确命令见第 2 节。
 
 ### 真机仍需验收
 
@@ -82,7 +124,7 @@ adb -s emulator-5580 shell am instrument -w \
 - [ ] 对同一主机重新扫码，确认令牌更新但不产生重复主机。
 - [ ] 验证锁屏、后台限制、Tailscale 断线/重连时的错误提示，且不会误发显示命令。
 
-## 4. Parsec VDD 随包安装
+## 5. Parsec VDD 随包安装
 
 ### 实现流程
 
@@ -118,15 +160,15 @@ adb -s emulator-5580 shell am instrument -w \
 - [ ] 已安装驱动的系统升级/启动 1.3.1 时不会重装或替换驱动。
 - [ ] 在无网络环境运行，确认内嵌安装器仍可使用（安装器自身若需联网组件，需记录实际行为）。
 
-## 5. 当前桌面现场安全状态
+## 6. 当前桌面现场安全状态
 
-- 运行中的仍是 PID **22708 / 1.2.0**，不得强杀、退出或直接替换。
-- `%LOCALAPPDATA%\NightDesk\recovery.json` 仍存在。
-- 最近只读诊断显示唯一活动源为 `\\.\DISPLAY6`（Parsec VDD），活动物理输出数量为 0。
-- 因此本轮**没有**执行 `off` / `on` / `toggle` / `add` / `remove` / `restore`，没有修改显示拓扑、没有卸载/重装 VDD，也没有重启桌面进程。
-- 1.3.1 只保留在 artifacts，必须等物理显示恢复、快照可验证后，再按交接文档受控部署。
+- 运行中的仍是 PID **13816 / 1.2.0**，不得强杀、退出或直接替换。
+- `%LOCALAPPDATA%\NightDesk\recovery.json` 仍存在（352 字节，最后写入 `2026/10/27 00:10:30`）。
+- 最近只读诊断显示唯一活动源为 `\\.\DISPLAY6`（Parsec VDD），没有确认安全的物理输出。
+- 因此本轮**没有**执行 `off` / `on` / `toggle` / `add` / `remove` / `restore`，没有修改显示拓扑、没有卸载/重装 VDD，也没有重启桌面进程，更没有在生产桌面运行真实 `nx-host.exe` 抓屏或 SendInput。
+- 1.3.1 和阶段 5 APK 只保留在 artifacts，必须等物理显示恢复、快照可验证后，再按交接文档受控部署。
 
-## 6. 人工验收清单（硬件相关，尚未执行）
+## 7. 人工验收清单（硬件相关，尚未执行）
 
 在现场操作人确认有活动物理屏幕、且 `recovery.json` 可恢复后再执行。每一步失败都停止并先恢复布局，不要自动重试 `add` 或 `toggle`。
 
@@ -179,7 +221,18 @@ adb -s emulator-5580 shell am instrument -w \
 - [ ] 重启 AI 后确认服务自动恢复、URL 仍可用。
 - [ ] 发布下一版本后确认 manifest 先保持旧值，APK 可读后再原子切换，客户端不会下载半发布文件。
 
-## 7. 故障恢复
+### G. NX 远程控制端到端（需独立测试机与真机）
+
+- [ ] 在独立 Windows 测试机部署 1.3.1 与匹配的 `nx-host.exe`，确认 sidecar 可启动且有日志。
+- [ ] 桌面“扫描二维码绑定”生成 NX 配对码，Android 真机通过 tailnet 扫码。
+- [ ] 确认首帧、tile 差分、滚动、点击、右键、组合键和 Unicode 文本可用。
+- [ ] 验证错误配对码、二维码过期、证书指纹变化、主机锁定、另一台设备接管和断网重连。
+- [ ] 验证切后台、锁屏、强制停止后鼠标/按键状态被释放。
+- [ ] 验证 sidecar 异常退出后 WPF 清除 running / ready 状态，并可重新启动。
+- [ ] 记录首帧时间、稳态带宽、CPU、内存和输入回执延迟。
+- [ ] 确认不执行任何音频、剪贴板、文件传输或多显示器切换测试，因为这些能力未实现。
+
+## 8. 故障恢复
 
 1. 如果点亮失败，保持 NightDesk 运行，使用“恢复保存布局”或远程 `restore`，不要先删除虚拟屏。
 2. 如果启动时提示有遗留快照，先恢复保存布局；启动不会悄悄切屏。
@@ -188,11 +241,15 @@ adb -s emulator-5580 shell am instrument -w \
 5. 如果 Serve 配置被外部程序改动，保留现状并人工核对，不要强行执行 `tailscale serve ... off`。
 6. 更新源异常时先查 `systemctl status nightdesk-update-feed` 和 `journalctl`；不要手工删除 manifest 或正在使用的 APK。
 7. VDD 安装失败时不要手工替换内嵌载荷；先查看 UAC、安装器退出码和设备管理器状态，再使用界面按钮重试。
+8. NX 连接失败时先看 Android 的失败分类：`host-identity` 必须重新扫码，`bad-code` / `untrusted` 重新配对，其它网络错误再重试；不要通过反复自动重连绕过。
+9. sidecar 异常退出时，先确认 WPF 已清除状态，再检查 `nx-host.exe` 日志、证书文件和防火墙；不要在生产桌面直接抓屏排查。
 
-## 8. 交付边界
+## 9. 交付边界
 
 - Android 1.0.4 已实现多主机、扫码绑定、永久设备令牌、独立更新源，并完成远端构建与仪器测试；物理真机联调仍需人工验收。
+- Android 1.1.0 阶段 5 候选已构建并通过 26 项 JVM 单测、4 项仪器测试和模拟器冒烟，但**未发布**；真实 Windows 抓屏、SendInput 和真机 tailnet **未验收**。
 - Windows 1.3.1 已构建、测试并携带 VDD 安装器，但**尚未替换运行中的 1.2.0**。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
+- go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不是通用远程桌面，不等同于 Sunshine/Parsec 视频串流。
 - 应用不提供任意 shell、文件访问或通用桌面控制接口。
 - “熄屏”是 Windows 显示拓扑切换，不保证每种显示器的面板电源、背光或无信号提示行为。
