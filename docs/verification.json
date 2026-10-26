@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-25T14:39:36.7824829Z",
+  "smokeExit": 0,
+  "driverVersion": "0.45",
+  "otherManagerRunning": true,
+  "remoteSession": false,
+  "activeSourcesBefore": [
+    "\\\\.\\DISPLAY22"
+  ],
+  "activeSourcesAfter": [
+    "\\\\.\\DISPLAY22"
+  ],
+  "activeHardwareCount": 0,
+  "displaySourcesUnchanged": true,
+  "serveConfigUnchanged": true,
+  "serveConfigEmpty": true,
+  "binarySHA256": "F9D88C504D8D2A2873959E5172D857422D5D328CFD77700194B179B58D6D554D"
+}

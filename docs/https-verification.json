@@ -1,0 +1,36 @@
+{
+  "utc": "2026-10-25T15:06:06.8371123Z",
+  "httpsUrl": "https://minipc-xoh4t.tail9f7f1f.ts.net/",
+  "homepageStatus": 200,
+  "authenticatedStatusPassed": true,
+  "preventSleepEnablePassed": true,
+  "preventSleepRestored": true,
+  "remoteEnabled": true,
+  "serveConfig": {
+    "TCP": {
+      "443": {
+        "HTTPS": true
+      }
+    },
+    "Web": {
+      "minipc-xoh4t.tail9f7f1f.ts.net:443": {
+        "Handlers": {
+          "/": {
+            "Proxy": "http://127.0.0.1:17645"
+          }
+        }
+      }
+    }
+  },
+  "funnelEnabled": false,
+  "listeningAddress": "127.0.0.1:17645",
+  "activeSources": [
+    "\\\\.\\DISPLAY22"
+  ],
+  "managedDisplayCount": 0,
+  "displayMutationCommandsSent": false,
+  "secondDeviceVerified": false,
+  "binarySHA256": "F9D88C504D8D2A2873959E5172D857422D5D328CFD77700194B179B58D6D554D",
+  "hotkey": "Ctrl+Alt+F10",
+  "hotkeyRegistrationViaUiPassed": true
+}

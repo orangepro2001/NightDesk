@@ -1,0 +1,33 @@
+{
+  "utc": "2026-10-25T18:22:50.9092633Z",
+  "host": "AI",
+  "service": "nightdesk-update-feed.service",
+  "serviceState": "active",
+  "serviceEnabled": true,
+  "listen": "127.0.0.1:17768",
+  "tailscaleHost": "tony-ai-pc-1.tail9f7f1f.ts.net",
+  "tailnetOnly": true,
+  "funnelEnabled": false,
+  "existingServeRoutesPreserved": true,
+  "pageStatus": 200,
+  "pageShowsVersion": "1.0.2",
+  "manifestStatus": 200,
+  "manifest": {
+    "schemaVersion": 1,
+    "packageName": "dev.nightdesk.android",
+    "versionCode": 3,
+    "versionName": "1.0.2",
+    "minSdk": 29,
+    "size": 6974843,
+    "sha256": "d1f71eb1a58c6428739b69114bb17b924b5d965fb06fae42c1e228cab1eedcb3",
+    "certificateSha256": "41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767",
+    "apkPath": "/nightdesk/latest.apk"
+  },
+  "apkStatus": 200,
+  "apkContentLength": 6974843,
+  "apkSha256": "d1f71eb1a58c6428739b69114bb17b924b5d965fb06fae42c1e228cab1eedcb3",
+  "localArtifactSha256": "d1f71eb1a58c6428739b69114bb17b924b5d965fb06fae42c1e228cab1eedcb3",
+  "instrumentedUpdateTest": "OK (1 test)",
+  "instrumentedUpdateTestSeconds": 9.106,
+  "instrumentedLog": "C:\\dev\\NightDesk\\artifacts\\android\\instrumented-update-1.0.2.log"
+}

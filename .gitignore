@@ -1,0 +1,11 @@
+# NightDesk local configuration and recovery files can contain encrypted credentials and display state.
+bin/
+obj/
+artifacts/
+*.user
+*.log
+# Local diagnostics and generated source snapshots
+diagnostics*.json
+nightdesk-android.tar.gz
+.vs/
+TestResults/

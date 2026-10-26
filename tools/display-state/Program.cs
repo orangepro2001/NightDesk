@@ -1,0 +1,13 @@
+using System;
+using NightDesk;
+var store = new SettingsStore();
+var settings = store.Load();
+Console.WriteLine("settings=" + store.LocalSettingsPath);
+Console.WriteLine("remoteEnabled=" + settings.RemoteEnabled + " storedFingerprintLen=" + settings.ServeFingerprint.Length);
+var ts = new TailscaleService();
+Console.WriteLine("url=" + await ts.GetHttpsUrlAsync());
+string? adopted = await ts.TryAdoptOwnedRouteAsync();
+Console.WriteLine("adopt=" + (adopted ?? "<none>"));
+string enabled = await ts.EnableAsync();
+Console.WriteLine("enable=" + enabled);
+Console.WriteLine("adoptAfterEnable=" + (await ts.TryAdoptOwnedRouteAsync() ?? "<none>"));

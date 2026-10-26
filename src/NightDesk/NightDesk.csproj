@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>NightDesk</AssemblyName>
+    <Version>1.3.1</Version>
+    <ApplicationIcon>Assets\nightdesk.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup><FrameworkReference Include="Microsoft.AspNetCore.App" /></ItemGroup>
+  <ItemGroup><PackageReference Include="QRCoder" Version="1.6.0" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="remote.html" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Assets\vdd\parsec-vdd-0.45.0.0.exe" LogicalName="NightDesk.Assets.vdd.parsec-vdd-0.45.0.0.exe" Condition="Exists('Assets\vdd\parsec-vdd-0.45.0.0.exe')" /></ItemGroup>
+  <ItemGroup><Resource Include="Assets\nightdesk.ico" /></ItemGroup>
+</Project>
+
+

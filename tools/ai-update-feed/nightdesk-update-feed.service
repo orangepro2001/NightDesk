@@ -1,0 +1,27 @@
+[Unit]
+Description=NightDesk Android update feed (loopback; Tailscale Serve front)
+Documentation=file:/home/tony/dev/nightdesk-update-feed/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tony
+Group=tony
+WorkingDirectory=/home/tony/dev/nightdesk-update-feed
+Environment=NIGHTDESK_FEED_DIR=/home/tony/dev/nightdesk-update-feed
+Environment=NIGHTDESK_FEED_PORT=17768
+ExecStart=/usr/bin/python3 /home/tony/dev/nightdesk-update-feed/server.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
