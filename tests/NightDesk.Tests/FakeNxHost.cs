@@ -18,8 +18,20 @@ internal static class FakeNxHost
         string display = Value(args, "-display") ?? "primary";
         int fps = int.TryParse(Value(args, "-fps"), out int parsed) ? parsed : 10;
         var trusted = new Dictionary<string, string>();
+        string? seededFingerprint = Environment.GetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_TRUSTED");
+        if (!string.IsNullOrWhiteSpace(seededFingerprint))
+            trusted[seededFingerprint] = "100.100.1.2:5555 2026-10-27 01:20";
 
+        if (Environment.GetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_MALFORMED") == "1")
+            Console.Out.WriteLine("not-json");
         Emit(new { @event = "ready", version = "fake-0.1", pid = Environment.ProcessId, listen, display, width = 1920, height = 1080, dpi = 96, identity = "fakeidentity", fps, requireAuth = true });
+
+        string? exitAfterReadyOnce = Environment.GetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_EXIT_AFTER_READY_ONCE");
+        if (!string.IsNullOrWhiteSpace(exitAfterReadyOnce) && !File.Exists(exitAfterReadyOnce))
+        {
+            File.WriteAllText(exitAfterReadyOnce, "consumed");
+            return;
+        }
 
         string? line;
         while ((line = await Console.In.ReadLineAsync()) is not null)

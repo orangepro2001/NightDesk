@@ -358,6 +358,7 @@ finally
 string fakeExe = Environment.ProcessPath ?? throw new Exception("test process path missing");
 string nxDir = Path.Combine(Path.GetTempPath(), "nightdesk-nx-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(nxDir);
+Environment.SetEnvironmentVariable("NIGHTDESK_NX_HOST", fakeExe);
 try
 {
     int nxPort = FreePort();
@@ -374,17 +375,76 @@ try
         Check(pairing.Task.Result.Code == "123456" && pairing.Task.Result.ExpiresIn == 60, "pairing event parsed");
         client.Stop();
         Check(ProcessHasExited(childPid), "sidecar exits after stop command");
+        bool duplicateStop = true;
+        try { client.Stop(); client.Stop(); DisposeTwice(client); }
+        catch { duplicateStop = false; }
+        Check(duplicateStop, "client stop and dispose are idempotent");
     }
 
     using (var service = new NxHostService())
     {
         var started = service.StartAsync(lifecycleOptions).GetAwaiter().GetResult();
         Check(service.IsRunning && service.State == NxHostState.Running && started.Event == "ready", "service reaches running");
+        var sameReady = service.StartAsync(lifecycleOptions).GetAwaiter().GetResult();
+        Check(ReferenceEquals(started, sameReady), "service start is idempotent while running");
         service.RefreshStatusAsync().GetAwaiter().GetResult();
         Check(service.Trusted.Count == 0, "service tracks empty trust list");
+        Check(service.StopForTopologyChangeAsync().GetAwaiter().GetResult(), "topology stop reports a running sidecar");
+        Check(!service.IsRunning && service.State == NxHostState.Stopped, "service reports stopped after topology stop");
+        Check(!service.StopForTopologyChangeAsync().GetAwaiter().GetResult(), "topology stop is a no-op when stopped");
         service.StopAsync().GetAwaiter().GetResult();
-        Check(!service.IsRunning && service.State == NxHostState.Stopped, "service stops cleanly");
+        Check(!service.IsRunning, "duplicate service stop is harmless");
+        var restarted = service.StartAsync(lifecycleOptions).GetAwaiter().GetResult();
+        Check(restarted.Event == "ready" && service.IsRunning, "service restarts after a clean stop");
+        service.StopAsync().GetAwaiter().GetResult();
     }
+
+    var malformedLogs = new List<string>();
+    Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_MALFORMED", "1");
+    try
+    {
+        using var tolerant = new NxHostClient(fakeExe, lifecycleOptions);
+        tolerant.Log += malformedLogs.Add;
+        var ready = tolerant.StartAsync().GetAwaiter().GetResult();
+        Check(ready.Event == "ready" && malformedLogs.Any(line => line.Contains("invalid event", StringComparison.Ordinal)),
+            "malformed stdout line is logged without breaking ready");
+        tolerant.Stop();
+    }
+    finally { Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_MALFORMED", null); }
+
+    string trustFingerprint = new string('a', 64);
+    Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_TRUSTED", trustFingerprint);
+    try
+    {
+        using var trustedService = new NxHostService();
+        var statusSeen = new TaskCompletionSource<NxHostEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        trustedService.EventReceived += value => { if (value.Event == "status") statusSeen.TrySetResult(value); };
+        trustedService.StartAsync(lifecycleOptions).GetAwaiter().GetResult();
+        trustedService.RefreshStatusAsync().GetAwaiter().GetResult();
+        bool sawStatus = statusSeen.Task.Wait(TimeSpan.FromSeconds(5));
+        Check(sawStatus, "service receives status event");
+        Check(statusSeen.Task.Result.Trusted?.Count == 1, "status event carries seeded trust entry");
+        Check(WaitUntil(() => trustedService.Trusted.Count == 1, TimeSpan.FromSeconds(5)), "service refreshes seeded trust list");
+        Check(trustedService.Trusted[0].Endpoint == "100.100.1.2:5555", "trusted endpoint survives status parsing");
+        trustedService.UntrustAsync(trustFingerprint).GetAwaiter().GetResult();
+        Check(WaitUntil(() => trustedService.Trusted.Count == 0, TimeSpan.FromSeconds(5)), "untrust emits a fresh status event");
+        trustedService.StopAsync().GetAwaiter().GetResult();
+    }
+    finally { Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_TRUSTED", null); }
+
+    string exitOnceMarker = Path.Combine(nxDir, "exit-after-ready-once.marker");
+    Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_EXIT_AFTER_READY_ONCE", exitOnceMarker);
+    try
+    {
+        using var recovering = new NxHostService();
+        recovering.StartAsync(lifecycleOptions).GetAwaiter().GetResult();
+        Check(WaitUntil(() => !recovering.IsRunning && recovering.State == NxHostState.Stopped, TimeSpan.FromSeconds(5)),
+            "unexpected clean exit clears the stale running state");
+        var recovered = recovering.StartAsync(lifecycleOptions).GetAwaiter().GetResult();
+        Check(recovered.Event == "ready" && recovering.IsRunning, "service can start a fresh sidecar after unexpected exit");
+        recovering.StopAsync().GetAwaiter().GetResult();
+    }
+    finally { Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_EXIT_AFTER_READY_ONCE", null); }
 
     Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_MODE", "exit");
     bool earlyExitRejected = false;
@@ -396,15 +456,45 @@ try
     }
     finally { Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_MODE", null); }
     Check(earlyExitRejected, "sidecar exiting before ready fails startup");
+
+    Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_MODE", "exit");
+    try
+    {
+        using var faultedService = new NxHostService();
+        bool faulted = false;
+        try { faultedService.StartAsync(lifecycleOptions).GetAwaiter().GetResult(); }
+        catch (InvalidOperationException) { faulted = true; }
+        Check(faulted && !faultedService.IsRunning && faultedService.State == NxHostState.Faulted,
+            "service clears ownership and reports fault on early exit");
+    }
+    finally { Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_MODE", null); }
 }
 finally
 {
+    Environment.SetEnvironmentVariable("NIGHTDESK_NX_HOST", null);
     if (Directory.Exists(nxDir)) Directory.Delete(nxDir, true);
 }
 
 Console.WriteLine($"{passed} tests passed. No display state changed.");
 
 
+
+static void DisposeTwice(IDisposable value)
+{
+    value.Dispose();
+    value.Dispose();
+}
+
+static bool WaitUntil(Func<bool> condition, TimeSpan timeout)
+{
+    var watch = Stopwatch.StartNew();
+    while (watch.Elapsed < timeout)
+    {
+        if (condition()) return true;
+        Thread.Sleep(25);
+    }
+    return condition();
+}
 
 static bool ProcessHasExited(int pid)
 {

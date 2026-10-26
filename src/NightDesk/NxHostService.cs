@@ -58,18 +58,7 @@ public sealed class NxHostService : IDisposable
             var next = new NxHostClient(executable, requested);
             next.EventReceived += OnEvent;
             next.Log += message => Log?.Invoke(message);
-            next.Exited += code =>
-            {
-                bool owned = ReferenceEquals(Volatile.Read(ref client), next);
-                if (owned)
-                {
-                    State = NxHostState.Stopped;
-                    connectedAddress = null;
-                    pairingCode = null;
-                    if (code != 0) lastError = $"nx-host 已退出（exit={code}）。";
-                    RaiseChanged();
-                }
-            };
+            next.Exited += code => OnClientExited(next, code);
 
             client = next;
             options = requested;
@@ -140,6 +129,25 @@ public sealed class NxHostService : IDisposable
     public Task UntrustAsync(string fingerprint) => SendAsync(NxHostProtocol.Untrust(fingerprint));
     public Task SetFpsAsync(int fps) => SendAsync(NxHostProtocol.Fps(fps));
     public Task RefreshStatusAsync() => SendAsync(NxHostProtocol.Status());
+
+    /// <summary>
+    /// Clears ownership before raising the UI event. Without this atomic handoff,
+    /// an exited process could leave a stale client/ready pair behind and the next
+    /// StartAsync would incorrectly report the dead instance as healthy.
+    /// </summary>
+    private void OnClientExited(NxHostClient source, int code)
+    {
+        if (!ReferenceEquals(Interlocked.CompareExchange(ref client, null, source), source)) return;
+        ready = null;
+        options = null;
+        connectedAddress = null;
+        pairingCode = null;
+        pairingExpiresAt = default;
+        lastError = code == 0 ? null : $"nx-host 已退出（exit={code}）。";
+        State = code == 0 ? NxHostState.Stopped : NxHostState.Faulted;
+        try { source.Dispose(); } catch (Exception ex) { Log?.Invoke("nx-host cleanup: " + ex.Message); }
+        RaiseChanged();
+    }
 
     private void OnEvent(NxHostEvent value)
     {
