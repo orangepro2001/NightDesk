@@ -73,6 +73,8 @@ public sealed class SettingsStore
 
     public string LocalDevicesPath => Path.Combine(directory, "trusted-devices.dat");
 
+    public string LocalNxHostDirectory => Path.Combine(directory, "nx-host");
+
     private static void AtomicWrite(string path, string value)
     {
         var temporary = path + ".tmp";

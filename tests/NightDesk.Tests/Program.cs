@@ -3,10 +3,18 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using NightDesk;
+using NightDesk.Tests;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+
+if (args.Contains("-control"))
+{
+    await FakeNxHost.RunAsync(args);
+    return;
+}
 
 int passed = 0;
 void Check(bool condition, string name) { if (!condition) throw new Exception("FAIL: " + name); passed++; Console.WriteLine("PASS: " + name); }
@@ -274,6 +282,111 @@ try
     Check(VddInstaller.ValidatePayload(Path.Combine(vddCache, "missing.exe")) is not null, "missing installer is rejected");
 }
 finally { if (Directory.Exists(vddCache)) Directory.Delete(vddCache, true); }
+// ---- go-nx sidecar options, protocol, trust parsing and process lifecycle ----
+Reject(() => new NxHostOptions("127.0.0.1", "primary", 10, "state").Validate(), "nx listen requires a port");
+Reject(() => new NxHostOptions("127.0.0.1:7000", "primary", 0, "state").Validate(), "nx fps must be positive");
+Reject(() => new NxHostOptions("127.0.0.1:7000", "primary", 61, "state").Validate(), "nx fps must stay below 61");
+Reject(() => new NxHostOptions("127.0.0.1:7000", "bad\u0001display", 10, "state").Validate(), "nx display rejects control characters");
+Reject(() => new NxHostOptions("127.0.0.1:7000", "primary", 10, " ").Validate(), "nx state directory required");
+string nxState = Path.Combine(Path.GetTempPath(), "nx state");
+string nxDevice = """\\.\\DISPLAY6""";
+var nxOptions = new NxHostOptions("127.0.0.1:7000", nxDevice, 10, nxState);
+var nxArguments = NxHostClient.BuildArguments(nxOptions);
+Check(nxArguments.SequenceEqual(new[] { "-listen", "127.0.0.1:7000", "-display", nxDevice, "-fps", "10", "-state-dir", nxState, "-control", "stdio" }), "nx-host arguments are exact");
+var nxReady = NxHostEvent.Parse("""{"event":"ready","listen":"127.0.0.1:7000","width":1920,"height":1080,"fps":10,"requireAuth":true}""");
+Check(nxReady.Event == "ready" && nxReady.Width == 1920 && nxReady.RequireAuth == true, "parse ready event");
+Check(!NxHostEvent.TryParse("""{"event":""}""", out _, out _), "reject event without a name");
+Check(!NxHostEvent.TryParse("not-json", out _, out _), "reject malformed event json");
+Check(NxHostProtocol.Pair() == """{"cmd":"pair","seconds":300}""", "pair command json");
+Check(NxHostProtocol.Pair(0).Contains("\"seconds\":1"), "pair seconds clamp low");
+Check(NxHostProtocol.Pair(9999).Contains("\"seconds\":3600"), "pair seconds clamp high");
+Check(NxHostProtocol.Fps(0).Contains("\"value\":1"), "fps clamp low");
+Check(NxHostProtocol.Fps(99).Contains("\"value\":60"), "fps clamp high");
+Check(NxHostProtocol.Untrust("abc") == """{"cmd":"untrust","fingerprint":"abc"}""", "untrust command json");
+var trustedDevice = NxTrustedDevice.Create("fingerprint", "192.168.1.5:5555 2026-10-27 01:20");
+Check(trustedDevice.Endpoint == "192.168.1.5:5555" && trustedDevice.PairedAt == "2026-10-27 01:20", "parse trusted ipv4 entry");
+var trustedV6 = NxTrustedDevice.Create("fingerprint", "[::1]:5555 2026-10-27 01:20");
+Check(trustedV6.Endpoint == "[::1]:5555", "parse trusted ipv6 entry");
+var trustedRaw = NxTrustedDevice.Create("fingerprint", "not-a-timestamp");
+Check(trustedRaw.Endpoint == "not-a-timestamp" && trustedRaw.PairedAt == "", "keep unparseable trust value visible");
+Check(NxTrustedDevice.From(null).Count == 0, "empty trust list has no devices");
+
+string locatorDir = Path.Combine(Path.GetTempPath(), "nightdesk-locator-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(locatorDir);
+string locatorExe = Path.Combine(locatorDir, "nx-host.exe");
+File.WriteAllText(locatorExe, "");
+try
+{
+    Environment.SetEnvironmentVariable("NIGHTDESK_NX_HOST", locatorExe);
+    Check(NxHostLocator.Resolve() == Path.GetFullPath(locatorExe), "locator honours environment override");
+    Environment.SetEnvironmentVariable("NIGHTDESK_NX_HOST", Path.Combine(locatorDir, "missing.exe"));
+    bool missingRejected = false;
+    try { _ = NxHostLocator.Resolve(); } catch (FileNotFoundException) { missingRejected = true; }
+    Check(missingRejected, "locator rejects missing override");
+}
+finally
+{
+    Environment.SetEnvironmentVariable("NIGHTDESK_NX_HOST", null);
+    if (Directory.Exists(locatorDir)) Directory.Delete(locatorDir, true);
+}
+
+string fakeExe = Environment.ProcessPath ?? throw new Exception("test process path missing");
+string nxDir = Path.Combine(Path.GetTempPath(), "nightdesk-nx-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(nxDir);
+try
+{
+    int nxPort = FreePort();
+    var lifecycleOptions = new NxHostOptions($"127.0.0.1:{nxPort}", "primary", 10, nxDir);
+    using (var client = new NxHostClient(fakeExe, lifecycleOptions))
+    {
+        var pairing = new TaskCompletionSource<NxHostEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.EventReceived += value => { if (value.Event == "pairing" && !string.IsNullOrEmpty(value.Code)) pairing.TrySetResult(value); };
+        var started = client.StartAsync().GetAwaiter().GetResult();
+        Check(started.Event == "ready" && started.Width == 1920, "fake sidecar reports ready");
+        int childPid = client.ProcessId;
+        client.SendAsync(NxHostProtocol.Pair(60)).GetAwaiter().GetResult();
+        Check(pairing.Task.Wait(TimeSpan.FromSeconds(5)), "fake sidecar answers pairing");
+        Check(pairing.Task.Result.Code == "123456" && pairing.Task.Result.ExpiresIn == 60, "pairing event parsed");
+        client.Stop();
+        Check(ProcessHasExited(childPid), "sidecar exits after stop command");
+    }
+
+    using (var service = new NxHostService())
+    {
+        var started = service.StartAsync(lifecycleOptions).GetAwaiter().GetResult();
+        Check(service.IsRunning && service.State == NxHostState.Running && started.Event == "ready", "service reaches running");
+        service.RefreshStatusAsync().GetAwaiter().GetResult();
+        Check(service.Trusted.Count == 0, "service tracks empty trust list");
+        service.StopAsync().GetAwaiter().GetResult();
+        Check(!service.IsRunning && service.State == NxHostState.Stopped, "service stops cleanly");
+    }
+
+    Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_MODE", "exit");
+    bool earlyExitRejected = false;
+    try
+    {
+        using var broken = new NxHostClient(fakeExe, lifecycleOptions);
+        try { broken.StartAsync().GetAwaiter().GetResult(); }
+        catch (InvalidOperationException) { earlyExitRejected = true; }
+    }
+    finally { Environment.SetEnvironmentVariable("NIGHTDESK_FAKE_NX_HOST_MODE", null); }
+    Check(earlyExitRejected, "sidecar exiting before ready fails startup");
+}
+finally
+{
+    if (Directory.Exists(nxDir)) Directory.Delete(nxDir, true);
+}
+
 Console.WriteLine($"{passed} tests passed. No display state changed.");
 
 
+
+static bool ProcessHasExited(int pid)
+{
+    try
+    {
+        using var process = Process.GetProcessById(pid);
+        return process.HasExited;
+    }
+    catch (ArgumentException) { return true; }
+}

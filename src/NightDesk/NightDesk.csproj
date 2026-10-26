@@ -17,6 +17,10 @@
   <ItemGroup><EmbeddedResource Include="remote.html" /></ItemGroup>
   <ItemGroup><EmbeddedResource Include="Assets\vdd\parsec-vdd-0.45.0.0.exe" LogicalName="NightDesk.Assets.vdd.parsec-vdd-0.45.0.0.exe" Condition="Exists('Assets\vdd\parsec-vdd-0.45.0.0.exe')" /></ItemGroup>
   <ItemGroup><Resource Include="Assets\nightdesk.ico" /></ItemGroup>
+  <ItemGroup>
+    <Content Include="Assets\nx-host\nx-host.exe" Condition="Exists('Assets\nx-host\nx-host.exe')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>nx-host.exe</Link>
+    </Content>
+  </ItemGroup>
 </Project>
-
-

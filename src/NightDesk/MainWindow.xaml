@@ -58,6 +58,33 @@
       <TextBlock Text="二维码只包含 5 分钟有效的一次性配对票据，不含设备长期令牌。删除绑定后，该设备的下一次请求立即返回 401。" Foreground="#8FA79A" FontSize="12" Margin="0,10,0,0"/>
      </StackPanel></Border>
     </StackPanel></Border>
+    <Border Style="{StaticResource Card}"><StackPanel>
+     <TextBlock Text="05 / 低带宽远程控制 (GO-NX)" Foreground="#A6B5AA" FontFamily="Consolas" FontSize="12"/>
+     <TextBlock Text="QUIC + 无损瓦片差分 · 适合文字与静态界面" FontSize="20" Margin="0,10,0,6"/>
+     <TextBlock Text="与 04 区 Tailscale HTTPS 面板相互独立：本区直接传输屏幕瓦片和输入事件，不经过浏览器。默认关闭，启用后本机立即开始屏幕采集与输入注入。" Foreground="#ACBCAF"/>
+     <Grid Margin="0,16,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="2*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <StackPanel Margin="0,0,12,0"><TextBlock Text="监听地址 (UDP)" Margin="0,0,0,6"/><TextBox x:Name="NxListenBox" Text="127.0.0.1:7000" AutomationProperties.Name="远控监听地址"/></StackPanel>
+      <StackPanel Margin="0,0,12,0"><TextBlock Text="显示器" Margin="0,0,0,6"/><TextBox x:Name="NxDisplayBox" Text="primary" AutomationProperties.Name="远控显示器"/></StackPanel>
+      <StackPanel><TextBlock Text="帧率" Margin="0,0,0,6"/><TextBox x:Name="NxFpsBox" Text="10" AutomationProperties.Name="远控帧率"/></StackPanel>
+     </Grid>
+     <TextBlock Text="显示器可填 primary、从 0 开始的索引或 \\.\\DISPLAYn。生产环境请监听 Tailscale 地址（例如 100.x.y.z:7000），不要直接暴露公网 UDP。" Foreground="#8FA79A" FontSize="12" Margin="0,8,0,0"/>
+     <WrapPanel Margin="0,14,0,0">
+      <Button x:Name="NxEnableButton" Click="NxEnable_Click" Content="启用低带宽远控"/>
+      <Button x:Name="NxPairButton" Click="NxPair_Click" Content="生成配对码" Style="{StaticResource Secondary}" IsEnabled="False"/>
+      <Button x:Name="NxRefreshButton" Click="NxRefresh_Click" Content="刷新设备" Style="{StaticResource Secondary}" IsEnabled="False"/>
+     </WrapPanel>
+     <Border Background="#101815" CornerRadius="8" Padding="14" Margin="0,14,0,0"><StackPanel>
+      <TextBlock x:Name="NxStatusLabel" Text="远控未启用" FontWeight="SemiBold" FontSize="16"/>
+      <TextBlock x:Name="NxPeerLabel" Text="无客户端连接" Foreground="#A6B5AA" Margin="0,4,0,0"/>
+      <TextBlock x:Name="NxCodeLabel" Text="尚未生成配对码" Foreground="#D2EE9A" FontFamily="Consolas" FontSize="18" Margin="0,8,0,0"/>
+     </StackPanel></Border>
+     <TextBlock Text="受信任设备（证书指纹）" FontWeight="SemiBold" Margin="0,16,0,8"/>
+     <ListBox x:Name="NxTrustedList" MinHeight="70" MaxHeight="150" Background="#101815" Foreground="#E6EEEA" BorderBrush="#34443B" SelectionChanged="NxDeviceList_SelectionChanged" AutomationProperties.Name="go-nx 受信任设备">
+      <ListBox.ItemTemplate><DataTemplate><StackPanel Margin="4,3"><TextBlock Text="{Binding Display}" FontFamily="Consolas"/><TextBlock Text="{Binding PairedAt}" Foreground="#8FA79A" FontSize="12"/></StackPanel></DataTemplate></ListBox.ItemTemplate>
+     </ListBox>
+     <WrapPanel Margin="0,10,0,0"><Button x:Name="NxUntrustButton" Click="NxUntrust_Click" Content="解除所选设备信任" Style="{StaticResource Secondary}" IsEnabled="False"/></WrapPanel>
+     <TextBlock Text="配对码 5 分钟有效且仅能绑定一台新设备；连续 5 次错误会锁定 1 分钟。sidecar 退出或 NightDesk 崩溃时，Windows Job Object 会一并终止它。" Foreground="#8FA79A" FontSize="12" Margin="0,10,0,0"/>
+    </StackPanel></Border>
     <Expander Header="当前显示设备 / 诊断" Foreground="#ACBCAF" Margin="3,4,0,8"><TextBox x:Name="DiagnosticsBox" IsReadOnly="True" TextWrapping="Wrap" Margin="0,10,0,0" FontFamily="Consolas"/></Expander>
     <Button Content="退出 NightDesk" Click="Exit_Click" Style="{StaticResource Secondary}" HorizontalAlignment="Right" Margin="0,8,8,0"/>
    </StackPanel>

@@ -28,6 +28,13 @@ public sealed class AppSettings
     public bool PreventSleep { get; set; }
     public bool RemoteEnabled { get; set; }
     public string ServeFingerprint { get; set; } = "";
+
+    // Low-bandwidth go-nx remote control (nx-host sidecar). Disabled by default:
+    // enabling it starts screen capture and input injection on this PC.
+    public bool NxHostEnabled { get; set; }
+    public string NxHostListen { get; set; } = "127.0.0.1:7000";
+    public string NxHostDisplay { get; set; } = "primary";
+    public int NxHostFps { get; set; } = 10;
 }
 
 public static class Security

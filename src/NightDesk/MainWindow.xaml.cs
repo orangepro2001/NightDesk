@@ -15,6 +15,8 @@ public partial class MainWindow : Window
     private readonly RemoteAuthenticator authentication;
     private readonly GlobalHotkey hotkey = new();
     private readonly Forms.NotifyIcon tray;
+    private readonly NxHostService nxHost = new();
+    private readonly System.Windows.Threading.DispatcherTimer nxTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private RemoteServer? server;
     private TailscaleService? tailscale;
     private string remoteUrl = "";
@@ -33,18 +35,23 @@ public partial class MainWindow : Window
         controller.Changed += UpdateState;
         WidthBox.Text = settings.Width.ToString(); HeightBox.Text = settings.Height.ToString(); RefreshBox.Text = settings.RefreshRate.ToString();
         HotkeyBox.Text = settings.Hotkey;
+        NxListenBox.Text = settings.NxHostListen; NxDisplayBox.Text = settings.NxHostDisplay; NxFpsBox.Text = settings.NxHostFps.ToString();
+        nxHost.Changed += () => Dispatcher.BeginInvoke(RefreshNxUi);
+        nxHost.Log += message => RemoteDiagnostics.Log("nx-host: " + message);
+        nxHost.EventReceived += value => Dispatcher.BeginInvoke(() => HandleNxEvent(value));
+        nxTimer.Tick += (_, _) => { if (nxHost.PairingCode is null) nxTimer.Stop(); RefreshNxUi(); };
         tray = new Forms.NotifyIcon { Text = "NightDesk · 屏幕与远程工作台", Icon = LoadAppIcon(), Visible = true };
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add("打开 NightDesk", null, (_, _) => Dispatcher.Invoke(ShowFromTray));
-        menu.Items.Add("熄屏 / 点亮", null, async (_, _) => await Dispatcher.InvokeAsync(() => RunAsync(() => controller.SetRemoteModeAsync(!controller.IsRemoteMode))).Task.Unwrap());
-        menu.Items.Add("恢复保存布局", null, async (_, _) => await Dispatcher.InvokeAsync(() => RunAsync(() => { controller.RestoreSaved(); return Task.CompletedTask; })).Task.Unwrap());
+        menu.Items.Add("熄屏 / 点亮", null, async (_, _) => await Dispatcher.InvokeAsync(() => RunAsync(() => WithTopologyAsync(() => controller.SetRemoteModeAsync(!controller.IsRemoteMode)))).Task.Unwrap());
+        menu.Items.Add("恢复保存布局", null, async (_, _) => await Dispatcher.InvokeAsync(() => RunAsync(() => WithTopologyAsync(() => { controller.RestoreSaved(); return Task.CompletedTask; }))).Task.Unwrap());
         menu.Items.Add("退出", null, async (_, _) => await Dispatcher.InvokeAsync(ExitAsync).Task.Unwrap());
         tray.ContextMenuStrip = menu;
         tray.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromTray);
         SourceInitialized += (_, _) =>
         {
             hotkey.Attach(new WindowInteropHelper(this).Handle);
-            hotkey.Pressed += async (_, _) => await RunAsync(() => controller.SetRemoteModeAsync(!controller.IsRemoteMode));
+            hotkey.Pressed += async (_, _) => await RunAsync(() => WithTopologyAsync(() => controller.SetRemoteModeAsync(!controller.IsRemoteMode)));
             if (!hotkey.Register(HotkeySpec.Parse(settings.Hotkey))) SetStatus("全局快捷键注册失败（可能已被占用），请在界面中更改。", true);
         };
         Loaded += async (_, _) => await InitializeAsync();
@@ -76,6 +83,19 @@ public partial class MainWindow : Window
                 SetStatus("未检测到 Parsec VDD 驱动，正在自动安装随包携带的官方安装器（需要管理员授权）…");
                 var installed = await VddInstaller.InstallAsync();
                 SetStatus(installed.Message, !installed.Installed);
+            }
+            if (settings.NxHostEnabled)
+            {
+                try
+                {
+                    await StartNxHostCoreAsync();
+                    SetStatus("低带宽远控已按设置自动启动。");
+                }
+                catch (Exception ex)
+                {
+                    RemoteDiagnostics.Log("nx-host auto start failed", ex);
+                    SetStatus("低带宽远控自动启动失败（保留启用设置，下次启动重试）：" + ex.Message, true);
+                }
             }
             if (controller.HasRecoveryFile && !controller.IsRemoteMode) SetStatus("检测到上次未恢复的显示布局，请点击“恢复保存布局”。", true);
             initialized = true;
@@ -120,8 +140,14 @@ public partial class MainWindow : Window
         RemoteLabel.Text = server is not null ? "已启用 · Tailscale HTTPS + 长期设备令牌" : string.IsNullOrEmpty(remoteError) ? "远程控制未启用" : "远程控制未启用 · " + remoteError;
         RemoteButton.Content = server is not null ? "关闭远程控制" : "启用 HTTPS 远程控制";
         RefreshDriverState();
-        DiagnosticsBox.Text = JsonSerializer.Serialize(new { displays = controller.Status(), remote = new { enabled = server is not null, url = remoteUrl, port = RemoteServer.DefaultPort, serveFingerprint = settings.ServeFingerprint, lastError = remoteError, log = RemoteDiagnostics.LogPath } }, new JsonSerializerOptions { WriteIndented = true });
+        DiagnosticsBox.Text = JsonSerializer.Serialize(new
+        {
+            displays = controller.Status(),
+            remote = new { enabled = server is not null, url = remoteUrl, port = RemoteServer.DefaultPort, serveFingerprint = settings.ServeFingerprint, lastError = remoteError, log = RemoteDiagnostics.LogPath },
+            nxHost = new { state = nxHost.State.ToString(), running = nxHost.IsRunning, options = nxHost.RunningOptions, ready = nxHost.ReadyEvent, connected = nxHost.ConnectedAddress, trusted = nxHost.Trusted, lastError = nxHost.LastError }
+        }, new JsonSerializerOptions { WriteIndented = true });
         RefreshDevices();
+        RefreshNxUi();
     }
 
     private void RefreshDriverState()
@@ -140,7 +166,8 @@ public partial class MainWindow : Window
     private async void InstallDriver_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
     {
         SetStatus("正在安装 Parsec VDD 驱动（需要管理员授权）…");
-        var result = await VddInstaller.InstallAsync();
+        VddInstallResult result = default!;
+        await WithTopologyAsync(async () => result = await VddInstaller.InstallAsync());
         SetStatus(result.Message, !result.Installed);
     });
 
@@ -179,10 +206,10 @@ public partial class MainWindow : Window
     {
         var mode = ReadMode(); settings.Width = mode.Width; settings.Height = mode.Height; settings.RefreshRate = mode.RefreshRate; store.Save(settings);
     }
-    private async void Toggle_Click(object sender, RoutedEventArgs e) => await RunAsync(async () => { if (!controller.IsRemoteMode) SaveMode(); await controller.SetRemoteModeAsync(!controller.IsRemoteMode); });
-    private async void Add_Click(object sender, RoutedEventArgs e) => await RunAsync(async () => { var mode = ReadMode(); SaveMode(); await controller.AddAsync(mode); });
-    private async void Remove_Click(object sender, RoutedEventArgs e) => await RunAsync(async () => { if (DisplayList.SelectedItem is not VirtualDisplayInfo item) throw new ArgumentException("请选择本程序创建的显示器。"); await controller.RemoveAsync(item.Index); });
-    private async void Restore_Click(object sender, RoutedEventArgs e) => await RunAsync(() => { controller.RestoreSaved(); return Task.CompletedTask; });
+    private async void Toggle_Click(object sender, RoutedEventArgs e) => await RunAsync(async () => { if (!controller.IsRemoteMode) SaveMode(); await WithTopologyAsync(() => controller.SetRemoteModeAsync(!controller.IsRemoteMode)); });
+    private async void Add_Click(object sender, RoutedEventArgs e) => await RunAsync(async () => { var mode = ReadMode(); SaveMode(); await WithTopologyAsync(() => controller.AddAsync(mode)); });
+    private async void Remove_Click(object sender, RoutedEventArgs e) => await RunAsync(async () => { if (DisplayList.SelectedItem is not VirtualDisplayInfo item) throw new ArgumentException("请选择本程序创建的显示器。"); await WithTopologyAsync(() => controller.RemoveAsync(item.Index)); });
+    private async void Restore_Click(object sender, RoutedEventArgs e) => await RunAsync(() => WithTopologyAsync(() => { controller.RestoreSaved(); return Task.CompletedTask; }));
     private void Refresh_Click(object sender, RoutedEventArgs e) { try { UpdateState(); SetStatus("状态已刷新。"); } catch (Exception ex) { Report(ex); } }
     private void SaveMode_Click(object sender, RoutedEventArgs e) { try { SaveMode(); SetStatus("默认显示模式已保存。"); } catch (Exception ex) { Report(ex); } }
     private void Sleep_Click(object sender, RoutedEventArgs e) { try { controller.SetPreventSleep(SleepBox.IsChecked == true); SetStatus("防休眠状态已更新。"); } catch (Exception ex) { Report(ex); UpdateState(); } }
@@ -269,13 +296,13 @@ public partial class MainWindow : Window
         {
             switch (command.Name)
             {
-                case "off": await controller.SetRemoteModeAsync(true); break;
-                case "on": await controller.SetRemoteModeAsync(false); break;
-                case "toggle": await controller.SetRemoteModeAsync(!controller.IsRemoteMode); break;
-                case "add": await controller.AddAsync(new DisplayMode(command.Width!.Value, command.Height!.Value, command.RefreshRate!.Value)); break;
-                case "remove": await controller.RemoveAsync(command.Index!.Value); break;
+                case "off": await WithTopologyAsync(() => controller.SetRemoteModeAsync(true)); break;
+                case "on": await WithTopologyAsync(() => controller.SetRemoteModeAsync(false)); break;
+                case "toggle": await WithTopologyAsync(() => controller.SetRemoteModeAsync(!controller.IsRemoteMode)); break;
+                case "add": await WithTopologyAsync(() => controller.AddAsync(new DisplayMode(command.Width!.Value, command.Height!.Value, command.RefreshRate!.Value))); break;
+                case "remove": await WithTopologyAsync(() => controller.RemoveAsync(command.Index!.Value)); break;
                 case "prevent-sleep": controller.SetPreventSleep(command.Enabled!.Value); break;
-                case "restore": controller.RestoreSaved(); break;
+                case "restore": await WithTopologyAsync(() => { controller.RestoreSaved(); return Task.CompletedTask; }); break;
                 default: throw new ArgumentException("未知命令。");
             }
             return new { ok = true, message = "操作已完成。", status = controller.Status() };
@@ -337,6 +364,8 @@ public partial class MainWindow : Window
         operationRunning = true;
         try
         {
+            await nxHost.StopAsync();
+            nxHost.Dispose();
             controller.Dispose();
             await StopApiAsync();
             hotkey.Dispose(); tray.Visible = false; tray.Dispose();
@@ -345,6 +374,179 @@ public partial class MainWindow : Window
         catch (Exception ex) { ShowFromTray(); Report(new InvalidOperationException("未退出：恢复显示或清理虚拟屏幕失败。" + ex.Message, ex)); }
         finally { operationRunning = false; }
     }
+    // ---------------------------------------------------------------------
+    // go-nx low-bandwidth remote control
+    // ---------------------------------------------------------------------
+
+    /// <summary>
+    /// Stops the sidecar before any display topology transaction and restarts it
+    /// only after the topology is stable. A restart failure never rolls back the
+    /// display operation the user requested.
+    /// </summary>
+    private async Task WithTopologyAsync(Func<Task> operation)
+    {
+        bool restart = nxHost.IsRunning;
+        if (restart)
+        {
+            await nxHost.StopAsync();
+            SetStatus("显示拓扑即将变化，已暂停低带宽远控。");
+        }
+        try { await operation(); }
+        finally
+        {
+            if (restart && settings.NxHostEnabled)
+            {
+                try
+                {
+                    await StartNxHostCoreAsync();
+                    SetStatus("显示操作完成，低带宽远控已按原设置恢复。");
+                }
+                catch (Exception ex)
+                {
+                    RemoteDiagnostics.Log("nx-host restart after topology change failed", ex);
+                    SetStatus("显示操作已完成，但低带宽远控未能恢复：" + ex.Message, true);
+                }
+            }
+        }
+    }
+
+    private NxHostOptions ReadNxOptions()
+    {
+        if (!int.TryParse(NxFpsBox.Text.Trim(), out int fps)) throw new ArgumentException("远控帧率必须为整数。");
+        return new NxHostOptions(NxListenBox.Text.Trim(), NxDisplayBox.Text.Trim(), fps, store.LocalNxHostDirectory).Validate();
+    }
+
+    private async Task StartNxHostCoreAsync()
+    {
+        var options = new NxHostOptions(settings.NxHostListen, settings.NxHostDisplay, settings.NxHostFps, store.LocalNxHostDirectory).Validate();
+        await nxHost.StartAsync(options);
+    }
+
+    private void RefreshNxUi()
+    {
+        if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(RefreshNxUi); return; }
+        bool running = nxHost.IsRunning;
+        NxEnableButton.Content = running ? "停止低带宽远控" : "启用低带宽远控";
+        NxPairButton.IsEnabled = running;
+        NxRefreshButton.IsEnabled = running;
+        NxUntrustButton.IsEnabled = running && NxTrustedList.SelectedItem is NxTrustedDevice;
+        NxListenBox.IsEnabled = !running;
+        NxDisplayBox.IsEnabled = !running;
+        NxFpsBox.IsEnabled = !running;
+
+        var ready = nxHost.ReadyEvent;
+        NxStatusLabel.Text = !running
+            ? (nxHost.State == NxHostState.Faulted ? "远控启动失败" : "远控未启用")
+            : ready is null ? "远控正在启动…" :
+                $"运行中 · {ready.Width}×{ready.Height} @ {ready.Fps ?? settings.NxHostFps} FPS · {ready.Listen}";
+        NxPeerLabel.Text = running
+            ? string.IsNullOrEmpty(nxHost.ConnectedAddress) ? "无客户端连接 · 等待已配对设备" : "已连接：" + nxHost.ConnectedAddress
+            : string.IsNullOrEmpty(nxHost.LastError) ? "无客户端连接" : "上次错误：" + nxHost.LastError;
+
+        if (nxHost.PairingCode is { } code)
+        {
+            int seconds = (int)Math.Max(0, (nxHost.PairingExpiresAt - DateTimeOffset.UtcNow).TotalSeconds);
+            NxCodeLabel.Text = $"配对码 {code} · 剩余 {seconds} 秒";
+            if (seconds == 0) nxTimer.Stop();
+        }
+        else NxCodeLabel.Text = "尚未生成配对码";
+
+        string? selected = (NxTrustedList.SelectedItem as NxTrustedDevice)?.Fingerprint;
+        NxTrustedList.ItemsSource = nxHost.Trusted;
+        if (selected is not null) NxTrustedList.SelectedItem = nxHost.Trusted.FirstOrDefault(x => x.Fingerprint == selected);
+        NxUntrustButton.IsEnabled = running && NxTrustedList.SelectedItem is NxTrustedDevice;
+    }
+
+    private void HandleNxEvent(NxHostEvent value)
+    {
+        switch (value.Event)
+        {
+            case "ready":
+                SetStatus($"低带宽远控已就绪：{value.Width}×{value.Height} @ {value.Fps} FPS，监听 {value.Listen}。");
+                break;
+            case "pairing":
+                if (!string.IsNullOrEmpty(value.Code))
+                {
+                    nxTimer.Start();
+                    SetStatus($"配对码 {value.Code} 已生成，{value.ExpiresIn ?? 300} 秒内有效；仅能绑定一台新设备。");
+                }
+                else SetStatus("配对窗口已关闭。");
+                break;
+            case "connected":
+                SetStatus($"低带宽远控已连接：{value.Addr}。输入注入现在掌握在该客户端手中。");
+                break;
+            case "disconnected":
+                SetStatus("低带宽远控客户端已断开，已释放其按键和鼠标按钮。");
+                break;
+            case "denied":
+                SetStatus("已拒绝远控连接：" + (value.Reason ?? "untrusted"), true);
+                break;
+            case "error":
+                SetStatus("远控 sidecar 错误：" + value.Message, true);
+                break;
+            case "exited":
+                SetStatus("远控 sidecar 已退出。", true);
+                break;
+        }
+        RefreshNxUi();
+    }
+
+    private async void NxEnable_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (nxHost.IsRunning)
+        {
+            await nxHost.StopAsync();
+            settings.NxHostEnabled = false; store.Save(settings);
+            SetStatus("低带宽远控已停止，不再采集屏幕或注入输入。");
+            return;
+        }
+
+        var options = ReadNxOptions();
+        settings.NxHostEnabled = true;
+        settings.NxHostListen = options.Listen;
+        settings.NxHostDisplay = options.Display;
+        settings.NxHostFps = options.Fps;
+        store.Save(settings);
+        try
+        {
+            var ready = await nxHost.StartAsync(options);
+            SetStatus($"低带宽远控已启动：{ready.Width}×{ready.Height} @ {ready.Fps} FPS，监听 {ready.Listen}。请生成配对码并用手机连接。");
+        }
+        catch
+        {
+            settings.NxHostEnabled = false; store.Save(settings);
+            throw;
+        }
+    });
+
+    private async void NxPair_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (!nxHost.IsRunning) throw new InvalidOperationException("请先启用低带宽远控。");
+        await nxHost.PairAsync(300);
+        SetStatus("正在打开 5 分钟配对窗口…");
+    });
+
+    private async void NxRefresh_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (!nxHost.IsRunning) throw new InvalidOperationException("低带宽远控未运行。");
+        await nxHost.RefreshStatusAsync();
+        SetStatus("已请求远控设备状态。");
+    });
+
+    private void NxDeviceList_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        NxUntrustButton.IsEnabled = nxHost.IsRunning && NxTrustedList.SelectedItem is NxTrustedDevice;
+    }
+
+    private async void NxUntrust_Click(object sender, RoutedEventArgs e) => await RunAsync(async () =>
+    {
+        if (NxTrustedList.SelectedItem is not NxTrustedDevice device) throw new InvalidOperationException("请选择要解除信任的设备。");
+        if (MessageBox.Show(this, $"解除证书 {device.ShortFingerprint} 的远控信任？该设备的下一次连接会被拒绝。", "解除远控设备",
+                MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        await nxHost.UntrustAsync(device.Fingerprint);
+        SetStatus($"已请求解除 {device.ShortFingerprint} 的信任。");
+    });
+
     private async void Exit_Click(object sender, RoutedEventArgs e) => await ExitAsync();
 }
 
