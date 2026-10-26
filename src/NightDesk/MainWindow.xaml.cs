@@ -18,6 +18,11 @@ public partial class MainWindow : Window
     private readonly Forms.NotifyIcon tray;
     private readonly NxHostService nxHost = new();
     private readonly System.Windows.Threading.DispatcherTimer nxTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly DesktopUpdateService desktopUpdates = new();
+    private readonly System.Windows.Threading.DispatcherTimer desktopUpdateTimer = new() { Interval = TimeSpan.FromHours(6) };
+    private bool desktopUpdateBusy;
+    private string desktopUpdateMessage = "尚未检查更新";
+    private bool desktopUpdateFailed;
     private RemoteServer? server;
     private TailscaleService? tailscale;
     private string remoteUrl = "";
@@ -38,6 +43,10 @@ public partial class MainWindow : Window
         HotkeyBox.Text = settings.Hotkey;
         NxListenBox.Text = settings.NxHostListen; NxDisplayBox.Text = settings.NxHostDisplay; NxFpsBox.Text = settings.NxHostFps.ToString();
         NxViewerAddressBox.Text = settings.NxViewerAddress; NxViewerFingerprintBox.Text = settings.NxViewerFingerprint;
+        HeaderVersionLabel.Text = "版本 " + desktopUpdates.CurrentVersionText;
+        DesktopVersionLabel.Text = "当前版本：" + desktopUpdates.CurrentVersionText;
+        DesktopUpdateStatusLabel.Text = desktopUpdateMessage;
+        desktopUpdateTimer.Tick += async (_, _) => await CheckDesktopUpdateAsync(false);
         nxHost.Changed += () => Dispatcher.BeginInvoke(RefreshNxUi);
         nxHost.Log += message => RemoteDiagnostics.Log("nx-host: " + message);
         nxHost.EventReceived += value => Dispatcher.BeginInvoke(() => HandleNxEvent(value));
@@ -102,6 +111,8 @@ public partial class MainWindow : Window
             if (controller.HasRecoveryFile && !controller.IsRemoteMode) SetStatus("检测到上次未恢复的显示布局，请点击“恢复保存布局”。", true);
             initialized = true;
             UpdateState();
+            desktopUpdateTimer.Start();
+            _ = CheckDesktopUpdateAsync(false);
         }
         catch (Exception ex) { initialized = true; Report(ex); }
     }
@@ -133,6 +144,11 @@ public partial class MainWindow : Window
     {
         if (!Dispatcher.CheckAccess()) { Dispatcher.BeginInvoke(UpdateState); return; }
         ModeLabel.Text = controller.IsRemoteMode ? "● 虚拟显示接管" : "● 本地显示";
+        HeaderVersionLabel.Text = "版本 " + desktopUpdates.CurrentVersionText;
+        DesktopVersionLabel.Text = "当前版本：" + desktopUpdates.CurrentVersionText;
+        OverviewSummaryLabel.Text = (controller.IsRemoteMode ? "虚拟显示接管" : "本地显示") +
+            $" · {controller.Displays.Count} 个虚拟输出 · {(server is null ? "HTTPS 未启用" : "HTTPS 已启用")} · {(nxHost.IsRunning ? "NX 被控运行中" : "NX 被控未启用")}";
+        RefreshDesktopUpdateState();
         ToggleButton.Content = controller.IsRemoteMode ? "点亮物理屏幕 ←" : "熄灭物理屏幕 →";
         SleepBox.IsChecked = controller.PreventSleep;
         int? selection = (DisplayList.SelectedItem as VirtualDisplayInfo)?.Index;
@@ -371,6 +387,8 @@ public partial class MainWindow : Window
             controller.Dispose();
             await StopApiAsync();
             hotkey.Dispose(); tray.Visible = false; tray.Dispose();
+            desktopUpdateTimer.Stop();
+            desktopUpdates.Dispose();
             exiting = true; Close(); Application.Current.Shutdown();
         }
         catch (Exception ex) { ShowFromTray(); Report(new InvalidOperationException("未退出：恢复显示或清理虚拟屏幕失败。" + ex.Message, ex)); }
@@ -640,6 +658,92 @@ public partial class MainWindow : Window
             : $"{target.Address} 没有保存的主机指纹。");
         await Task.CompletedTask;
     });
+    private void RefreshDesktopUpdateState()
+    {
+        DesktopVersionLabel.Text = "当前版本：" + desktopUpdates.CurrentVersionText;
+        DesktopUpdateStatusLabel.Text = desktopUpdateMessage;
+        DesktopUpdateStatusLabel.Foreground = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter()
+            .ConvertFromString(desktopUpdateFailed ? "#E9B394" : "#A6B5AA")!;
+        WindowsUpdateReady? ready = desktopUpdates.Ready();
+        DesktopUpdateInstallButton.IsEnabled = !desktopUpdateBusy && ready is not null;
+        DesktopUpdateCheckButton.IsEnabled = !desktopUpdateBusy;
+    }
+
+    private void SetDesktopUpdateStatus(string message, bool failed = false)
+    {
+        desktopUpdateMessage = message;
+        desktopUpdateFailed = failed;
+        RefreshDesktopUpdateState();
+    }
+
+    private async Task CheckDesktopUpdateAsync(bool manual)
+    {
+        if (desktopUpdateBusy) return;
+        desktopUpdateBusy = true;
+        DesktopUpdateProgress.Visibility = Visibility.Visible;
+        DesktopUpdateProgress.Value = 0;
+        SetDesktopUpdateStatus(manual ? "正在连接桌面更新源…" : "后台检查桌面更新…");
+        try
+        {
+            var progress = new Progress<double>(value => DesktopUpdateProgress.Value = Math.Clamp(value, 0, 100));
+            WindowsUpdateRelease? release = await desktopUpdates.CheckAndDownloadAsync(progress);
+            if (release is null)
+            {
+                SetDesktopUpdateStatus($"已是最新版本 {desktopUpdates.CurrentVersionText}。");
+                if (manual) SetStatus("桌面端已是最新版本。");
+            }
+            else
+            {
+                SetDesktopUpdateStatus($"已下载并校验 {release.Version}，可安装并重启。");
+                SetStatus($"桌面更新 {release.Version} 已下载并通过 SHA-256 校验。");
+            }
+        }
+        catch (Exception ex)
+        {
+            RemoteDiagnostics.Log("desktop update check", ex);
+            SetDesktopUpdateStatus("更新检查或下载失败：" + ex.Message, true);
+            if (manual) SetStatus("桌面更新失败：" + ex.Message, true);
+        }
+        finally
+        {
+            desktopUpdateBusy = false;
+            DesktopUpdateProgress.Visibility = Visibility.Collapsed;
+            RefreshDesktopUpdateState();
+        }
+    }
+
+    private async void DesktopUpdateCheck_Click(object sender, RoutedEventArgs e) =>
+        await CheckDesktopUpdateAsync(true);
+
+    private async void DesktopUpdateInstall_Click(object sender, RoutedEventArgs e)
+    {
+        if (desktopUpdateBusy || operationRunning || !initialized) return;
+        WindowsUpdateReady? ready = desktopUpdates.Ready();
+        if (ready is null) { SetDesktopUpdateStatus("没有已验证的待安装桌面包。", true); return; }
+        if (MessageBox.Show(this,
+                $"安装 NightDesk {ready.Release.Version} 并重启？\n\nNightDesk 会先正常退出、停止 nx-host 并按现有规则清理显示状态，随后由独立安装脚本替换两个 EXE。",
+                "安装桌面更新", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+        desktopUpdateBusy = true;
+        SetDesktopUpdateStatus("正在启动受控安装并退出…");
+        Process? installer = null;
+        try
+        {
+            installer = await desktopUpdates.PrepareInstallAsync();
+            SetStatus("桌面更新安装器已启动，正在退出 NightDesk。");
+            await ExitAsync();
+            if (!exiting)
+            {
+                desktopUpdateBusy = false;
+                SetDesktopUpdateStatus("退出未完成；本次更新未安装，请先确认显示恢复后重试。", true);
+            }
+        }
+        catch (Exception ex)
+        {
+            desktopUpdateBusy = false;
+            SetDesktopUpdateStatus("无法启动桌面更新：" + ex.Message, true);
+            Report(ex);
+        }
+    }
     private async void Exit_Click(object sender, RoutedEventArgs e) => await ExitAsync();
 }
 

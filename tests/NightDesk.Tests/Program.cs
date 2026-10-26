@@ -1,3 +1,5 @@
+using System.IO.Compression;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -23,6 +25,15 @@ void RejectUnauthorized(Action action, string name) { try { action(); } catch (U
 Check(new DisplayMode(1920,1080,60).Validate() == new DisplayMode(1920,1080,60), "valid display mode");
 var mainXaml = FindRepoFile(Path.Combine("src", "NightDesk", "MainWindow.xaml"));
 Check(!File.ReadAllText(mainXaml).Contains("`r`n", StringComparison.Ordinal), "XAML has no literal escaped newline sequence");
+var layoutXml = System.Xml.Linq.XDocument.Load(mainXaml);
+System.Xml.Linq.XNamespace layoutNs = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+System.Xml.Linq.XNamespace nameNs = "http://schemas.microsoft.com/winfx/2006/xaml";
+foreach (var fields in new[] { new[] { "NxListenBox", "NxDisplayBox", "NxFpsBox" }, new[] { "NxViewerAddressBox", "NxViewerCodeBox", "NxViewerFingerprintBox" } })
+{
+    var columns = fields.Select(name => (int?)layoutXml.Descendants().Single(e => (string?)e.Attribute(nameNs + "Name") == name).Parent!.Attribute("Grid.Column") ?? 0).ToArray();
+    Check(columns.SequenceEqual(new[] { 0, 1, 2 }), "remote form fields occupy distinct columns: " + fields[0]);
+}
+Check(layoutXml.Descendants(layoutNs + "TabItem").Count() == 5, "desktop UI has five functional pages");
 Reject(() => new DisplayMode(0,1080,60).Validate(), "reject zero width");
 Reject(() => new DisplayMode(1920,1080,0).Validate(), "reject zero refresh");
 Reject(() => new DisplayMode(20000,1080,60).Validate(), "reject huge mode");
@@ -389,6 +400,81 @@ finally
 {
     if (Directory.Exists(viewerStateDir)) Directory.Delete(viewerStateDir, true);
 }
+string desktopUpdateDir = Path.Combine(Path.GetTempPath(), "nightdesk-desktop-update-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(desktopUpdateDir);
+try
+{
+    byte[] nightDeskBytes = Encoding.UTF8.GetBytes("fake-nightdesk-exe-1.6.0");
+    byte[] hostBytes = Encoding.UTF8.GetBytes("fake-nx-host-0.2.0");
+    var packageMetadata = new WindowsPackageMetadata
+    {
+        SchemaVersion = 1,
+        PackageName = DesktopUpdateService.PackageName,
+        Version = "1.6.0",
+        VersionCode = 10600,
+        Files =
+        [
+            new WindowsPackageFile { Name = "NightDesk.exe", Size = nightDeskBytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(nightDeskBytes)).ToLowerInvariant() },
+            new WindowsPackageFile { Name = "nx-host.exe", Size = hostBytes.Length, Sha256 = Convert.ToHexString(SHA256.HashData(hostBytes)).ToLowerInvariant() }
+        ]
+    };
+    byte[] zipBytes;
+    using (var archiveBuffer = new MemoryStream())
+    {
+        using (var zip = new ZipArchive(archiveBuffer, ZipArchiveMode.Create, true))
+        {
+            using (var writer = new StreamWriter(zip.CreateEntry("release.json").Open(), new UTF8Encoding(false)))
+                writer.Write(JsonSerializer.Serialize(packageMetadata));
+            using (var output = zip.CreateEntry("NightDesk.exe").Open()) output.Write(nightDeskBytes);
+            using (var output = zip.CreateEntry("nx-host.exe").Open()) output.Write(hostBytes);
+        }
+        zipBytes = archiveBuffer.ToArray();
+    }
+    byte[] zipHash = SHA256.HashData(zipBytes);
+    string updateManifest = JsonSerializer.Serialize(new WindowsUpdateRelease
+    {
+        SchemaVersion = 1,
+        PackageName = DesktopUpdateService.PackageName,
+        Version = "1.6.0",
+        VersionCode = 10600,
+        Arch = "win-x64",
+        Size = zipBytes.Length,
+        Sha256 = Convert.ToHexString(zipHash).ToLowerInvariant(),
+        PackagePath = DesktopUpdateService.LatestPackagePath,
+        Notes = "desktop updater test"
+    });
+    using (var updater = new DesktopUpdateService(desktopUpdateDir,
+               new HttpClient(new StubHttpHandler(updateManifest, zipBytes)), new Version(1, 5, 0)))
+    {
+        WindowsUpdateRelease? release = updater.CheckAndDownloadAsync().GetAwaiter().GetResult();
+        Check(release?.Version == "1.6.0", "desktop updater discovers newer release");
+        Check(updater.Ready()?.Release.VersionCode == 10600 &&
+              File.Exists(Path.Combine(updater.ReadyDirectory, "NightDesk.exe")) &&
+              File.Exists(Path.Combine(updater.ReadyDirectory, "nx-host.exe")),
+            "desktop updater verifies and stages both executables");
+    }
+    using (var current = new DesktopUpdateService(desktopUpdateDir,
+               new HttpClient(new StubHttpHandler(updateManifest, zipBytes)), new Version(1, 6, 0)))
+    {
+        Check(current.CheckAndDownloadAsync().GetAwaiter().GetResult() is null &&
+              current.Ready() is null,
+            "desktop updater clears a pending package once current");
+    }
+    string badManifest = updateManifest.Replace(Convert.ToHexString(zipHash).ToLowerInvariant(), new string('0', 64));
+    bool desktopHashRejected = false;
+    try
+    {
+        using var bad = new DesktopUpdateService(desktopUpdateDir,
+            new HttpClient(new StubHttpHandler(badManifest, zipBytes)), new Version(1, 5, 0));
+        bad.CheckAndDownloadAsync().GetAwaiter().GetResult();
+    }
+    catch (InvalidDataException) { desktopHashRejected = true; }
+    Check(desktopHashRejected, "desktop updater rejects a package hash mismatch");
+}
+finally
+{
+    if (Directory.Exists(desktopUpdateDir)) Directory.Delete(desktopUpdateDir, true);
+}
 string locatorDir = Path.Combine(Path.GetTempPath(), "nightdesk-locator-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(locatorDir);
 string locatorExe = Path.Combine(locatorDir, "nx-host.exe");
@@ -571,4 +657,22 @@ static bool ProcessHasExited(int pid)
         return process.HasExited;
     }
     catch (ArgumentException) { return true; }
+}
+
+internal sealed class StubHttpHandler(string manifest, byte[] package) : HttpMessageHandler
+{
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        string uri = request.RequestUri?.AbsoluteUri ?? "";
+        byte[] body = uri.EndsWith("/nightdesk/api/v1/windows-update", StringComparison.Ordinal)
+            ? Encoding.UTF8.GetBytes(manifest)
+            : uri.EndsWith("/nightdesk/windows/latest.zip", StringComparison.Ordinal) ? package : [];
+        var response = new HttpResponseMessage(body.Length == 0 ? System.Net.HttpStatusCode.NotFound : System.Net.HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(body)
+        };
+        if (body.Length > 0 && uri.EndsWith(".zip", StringComparison.Ordinal))
+            response.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/zip");
+        return Task.FromResult(response);
+    }
 }

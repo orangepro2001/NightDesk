@@ -16,6 +16,9 @@ import javax.crypto.KeyGenerator
 import javax.crypto.spec.GCMParameterSpec
 
 const val DEFAULT_UPDATE_ORIGIN = "https://tony-ai-pc-1.tail9f7f1f.ts.net"
+object AppPages {
+    val names = listOf("首页", "显示", "远控", "更新")
+}
 
 data class Profile(
     val controlOrigin: String,

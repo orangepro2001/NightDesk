@@ -9,3 +9,5 @@ diagnostics*.json
 nightdesk-android.tar.gz
 .vs/
 TestResults/
+__pycache__/
+*.pyc

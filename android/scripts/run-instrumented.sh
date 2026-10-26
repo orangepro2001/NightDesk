@@ -16,6 +16,8 @@ adb -s "$serial" install -r "$android_dir/app/build/outputs/apk/release/app-rele
 adb -s "$serial" install -r "$android_dir/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk" || status=1
 # HostStoreInstrumentedTest covers multi-host persistence and needs no arguments.
 adb -s "$serial" shell am instrument -w -e class dev.nightdesk.android.HostStoreInstrumentedTest dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner || status=1
+# MainUiInstrumentedTest verifies the four paginated sections switch without starting remote services.
+adb -s "$serial" shell am instrument -w -e class dev.nightdesk.android.MainUiInstrumentedTest dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner || status=1
 # UpdateFlowInstrumentedTest needs the tailnet update origin explicitly; without
 # it the test fails with "missing updateOrigin" instead of testing the feed.
 adb -s "$serial" shell am instrument -w -e updateOrigin "$update_origin" -e class dev.nightdesk.android.UpdateFlowInstrumentedTest dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner || status=1

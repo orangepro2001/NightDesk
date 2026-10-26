@@ -23,10 +23,9 @@ import java.util.concurrent.TimeUnit
 class UpdateWorker(context: Context, params: WorkerParameters) : Worker(context, params) {
     override fun doWork(): Result = try {
         val p = ProfileStore(applicationContext).loadHosts()?.active?.profile
-        if (p != null) {
-            val release = Updates(applicationContext).check(p)
-            if (release != null) notify(release)
-        }
+            ?: Profile(DEFAULT_UPDATE_ORIGIN, "", DEFAULT_UPDATE_ORIGIN)
+        val release = Updates(applicationContext).check(p)
+        if (release != null) notify(release)
         Result.success()
     } catch (_: Exception) { if (runAttemptCount < 2) Result.retry() else Result.failure() }
     private fun notify(r: Release) {

@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""NightDesk Android update feed.
+"""NightDesk update feed for Android APKs and Windows ZIP packages.
 
-Streams the signed APK and matching manifest for the Android client.
-Tailscale Serve keeps the endpoint tailnet-only; this process itself
-accepts no credentials and only listens on loopback.
+Tailscale Serve keeps the endpoint tailnet-only. This process itself accepts no
+credentials and only listens on loopback. Manifests are switched atomically by
+the publisher scripts; binary files are immutable.
 """
 import hashlib
 import html
 import json
 import os
+import re
+import shutil
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,79 +19,140 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(os.environ.get("NIGHTDESK_FEED_DIR", Path(__file__).resolve().parent))
 PORT = int(os.environ.get("NIGHTDESK_FEED_PORT", "17768"))
-MANIFEST_PATH = ROOT / "manifest.json"
-PACKAGE_NAME = "dev.nightdesk.android"
+ANDROID_MANIFEST_PATH = ROOT / "manifest.json"
+WINDOWS_MANIFEST_PATH = ROOT / "windows-manifest.json"
+ANDROID_PACKAGE_NAME = "dev.nightdesk.android"
+WINDOWS_PACKAGE_NAME = "dev.nightdesk.windows"
+MAX_ANDROID_SIZE = 100 * 1024 * 1024
+MAX_WINDOWS_SIZE = 300 * 1024 * 1024
+VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
-_cache = {"key": None, "sha": None}
+_android_cache = {"key": None, "sha": None}
+_windows_cache = {"key": None, "sha": None}
 
 
-def load_manifest():
+def load_android_manifest():
     try:
-        m = json.loads(MANIFEST_PATH.read_text("utf-8"))
+        m = json.loads(ANDROID_MANIFEST_PATH.read_text("utf-8"))
         int(m["versionCode"]); int(m["size"])
-        f"{m['versionName']}"
-        m["sha256"].lower(); m["certificateSha256"].lower()
+        if m["packageName"] != ANDROID_PACKAGE_NAME:
+            return None
+        if int(m["size"]) <= 0 or int(m["size"]) > MAX_ANDROID_SIZE:
+            return None
+        if len(str(m["sha256"])) != 64 or len(str(m["certificateSha256"])) != 64:
+            return None
         return m
     except Exception:
         return None
 
 
-def expected_apk_path(m, code):
-    return ROOT / f"nightdesk-{code}.apk"
+def load_windows_manifest():
+    try:
+        m = json.loads(WINDOWS_MANIFEST_PATH.read_text("utf-8"))
+        if int(m["schemaVersion"]) != 1 or m["packageName"] != WINDOWS_PACKAGE_NAME:
+            return None
+        if not VERSION_RE.match(str(m["version"])):
+            return None
+        if int(m["versionCode"]) <= 0 or m["arch"] != "win-x64":
+            return None
+        if int(m["size"]) <= 0 or int(m["size"]) > MAX_WINDOWS_SIZE:
+            return None
+        if len(str(m["sha256"])) != 64 or m["packagePath"] != "/nightdesk/windows/latest.zip":
+            return None
+        return m
+    except Exception:
+        return None
 
 
-def verified_apk(m):
-    code = int(m["versionCode"])
-    path = expected_apk_path(m, code)
+def expected_apk_path(m):
+    return ROOT / f"nightdesk-{int(m['versionCode'])}.apk"
+
+
+def expected_windows_path(m):
+    return ROOT / "windows" / f"nightdesk-windows-{m['version']}.zip"
+
+
+def verified_file(path, size, sha256, cache):
     if not path.is_file():
         return None
     st = path.stat()
     key = (str(path), st.st_mtime_ns, st.st_size)
-    if _cache["key"] != key:
+    if cache["key"] != key:
         digest = hashlib.sha256()
         with path.open("rb") as fh:
             for chunk in iter(lambda: fh.read(1024 * 1024), b""):
                 digest.update(chunk)
-        _cache["key"] = key
-        _cache["sha"] = digest.hexdigest()
-    if st.st_size != int(m["size"]) or _cache["sha"] != str(m["sha256"]).lower():
+        cache["key"] = key
+        cache["sha"] = digest.hexdigest()
+    if st.st_size != int(size) or cache["sha"] != str(sha256).lower():
         return None
     return path
 
 
-def apk_http_path(code):
-    return f"/api/v1/android-apk?versionCode={code}"
+def verified_apk(m):
+    return verified_file(expected_apk_path(m), m["size"], m["sha256"], _android_cache)
 
-INDEX_HTML = """<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
-<title>NightDesk Android 更新源</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-body{{font-family:system-ui,sans-serif;background:#f3f5f1;color:#17302c;margin:0;padding:24px}}
-main{{max-width:640px;margin:0 auto;background:#fff;border-radius:14px;padding:22px 24px;box-shadow:0 2px 14px rgba(0,0,0,.06)}}
-h1{{font-size:22px;margin:0 0 4px}} small{{color:#66736f}}
-table{{width:100%;border-collapse:collapse;margin-top:14px}}
-td{{padding:6px 0;vertical-align:top}}
-td.k{{width:110px;color:#66736f}}
-code{{background:#eef2ee;border-radius:6px;padding:2px 6px;font-size:13px;word-break:break-all}}
-a{{color:#0d6b60}}
-div.tip{{margin-top:16px;border-top:1px solid #e3e8e3;padding-top:12px;color:#66736f;font-size:13px;line-height:1.6}}
-</style></head><body><main>
-<h1>NightDesk Android 更新源</h1><small>由 Tailscale Serve 在专网内代理，不向公网开放</small>
-<table>
-<tr><td class="k">版本</td><td><strong>{version}</strong>（versionCode {code}）</td></tr>
-<tr><td class="k">大小</td><td>{size:,} 字节</td></tr>
-<tr><td class="k">SHA-256</td><td><code>{sha}</code></td></tr>
-<tr><td class="k">说明</td><td>{notes}</td></tr>
-<tr><td class="k">下载</td><td><a href="/nightdesk/latest.apk">最新 APK（nightdesk-{version}.apk）</a></td></tr>
-<tr><td class="k">清单</td><td><a href="/api/v1/android-update">/api/v1/android-update</a></td></tr>
-</table>
-<div class="tip">NightDesk Android 客户端自动检查此地址的 manifest；下载后按包名、版本、minSdk、大小、SHA-256、签名指纹校验并交由系统安装器确认，不会静默安装。</div>
-</main></body></html>
+
+def verified_windows_package(m):
+    return verified_file(expected_windows_path(m), m["size"], m["sha256"], _windows_cache)
+
+
+STYLE = """
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:#f1f4ef;color:#17302c;margin:0;padding:24px}
+main{max-width:860px;margin:0 auto}
+h1{font-size:25px;margin:0 0 4px} .sub{color:#66736f;margin-bottom:18px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px}
+section{background:#fff;border-radius:16px;padding:22px;box-shadow:0 3px 18px rgba(0,0,0,.07)}
+h2{font-size:18px;margin:0 0 10px} table{width:100%;border-collapse:collapse}
+td{padding:7px 0;vertical-align:top} td.k{width:100px;color:#66736f}
+code{background:#eef2ee;border-radius:6px;padding:2px 6px;font-size:12px;word-break:break-all}
+a{color:#0d6b60;font-weight:600} .tip{margin-top:14px;border-top:1px solid #e3e8e3;padding-top:12px;color:#66736f;font-size:13px;line-height:1.6}
+.unavailable{color:#9a4f32}
 """
 
 
+def render_card(title, manifest, download_label, download_path, manifest_path, package_note):
+    if manifest is None:
+        return f'<section><h2>{html.escape(title)}</h2><p class="unavailable">清单或发布包暂不可用</p></section>'
+    version = html.escape(str(manifest.get("versionName", manifest.get("version", ""))))
+    code = manifest.get("versionCode", "")
+    size = int(manifest["size"])
+    sha = html.escape(str(manifest["sha256"]))
+    notes = html.escape(str(manifest.get("notes", "")))
+    return f'''<section>
+<h2>{html.escape(title)}</h2>
+<table>
+<tr><td class="k">版本</td><td><strong>{version}</strong>（{html.escape(str(code))}）</td></tr>
+<tr><td class="k">大小</td><td>{size:,} 字节</td></tr>
+<tr><td class="k">SHA-256</td><td><code>{sha}</code></td></tr>
+<tr><td class="k">说明</td><td>{notes}</td></tr>
+<tr><td class="k">下载</td><td><a href="{download_path}">{html.escape(download_label)}</a></td></tr>
+<tr><td class="k">清单</td><td><a href="{manifest_path}">{manifest_path}</a></td></tr>
+</table>
+<div class="tip">{html.escape(package_note)}</div>
+</section>'''
+
+
+def render_index(android, windows):
+    android_card = render_card(
+        "Android 客户端", android, "最新 APK", "/nightdesk/latest.apk",
+        "/api/v1/android-update",
+        "Android 客户端自动检查更新；下载后校验包名、版本、大小、SHA-256 和签名，再交由系统安装器确认。")
+    windows_name = f"nightdesk-windows-{windows.get('version', 'latest')}.zip" if windows else "Windows ZIP"
+    windows_card = render_card(
+        "Windows 桌面端", windows, windows_name, "/nightdesk/windows/latest.zip",
+        "/nightdesk/api/v1/windows-update",
+        "Windows 客户端在启动时和每 6 小时自动检查并下载；安装前需确认，替换两个 EXE 后会重新启动。")
+    return f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>NightDesk 更新源</title><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>{STYLE}</style></head><body><main>
+<h1>NightDesk 更新源</h1><div class="sub">Tailscale Serve 专网代理，不向公网开放</div>
+<div class="cards">{android_card}{windows_card}</div>
+</main></body></html>'''
+
+
 class Handler(BaseHTTPRequestHandler):
-    server_version = "NightDeskFeed/1"
+    server_version = "NightDeskFeed/2"
     protocol_version = "HTTP/1.1"
 
     def _send(self, code, body, ctype="text/plain; charset=utf-8", extra=None):
@@ -102,100 +165,148 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cache-Control", extra.get("cache", "no-store"))
-        for k, v in (extra or {}).items():
-            if k not in ("cache",):
+        for k, v in extra.items():
+            if k != "cache":
                 self.send_header(k, v)
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
 
-    def _error(self, code, message):
-        self._send(code, json.dumps({"error": message}), "application/json; charset=utf-8")
-
-    def _serve_apk(self, m, filename, code_qs):
-        if code_qs is not None and code_qs != int(m["versionCode"]):
-            self._error(409, f"清单已是 versionCode {int(m['versionCode'])}，请重新读取 /api/v1/android-update")
-            return
-        path = verified_apk(m)
-        if path is None:
-            self._error(503, "APK 与清单不一致或缺失，更新源暂不可用")
-            return
-        body = path.read_bytes()
+    def _serve_file(self, path, ctype, filename):
         try:
-            self._send(200, body, "application/vnd.android.package-archive", {
-                "cache": "public, max-age=3600",
-                "Content-Disposition": f'attachment; filename="{filename(int(m["versionCode"]))}"',
-                "Last-Modified": time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime(path.stat().st_mtime)),
-            })
+            st = path.stat()
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(st.st_size))
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Last-Modified", time.strftime("%a, %d %b %Y %H:%M:%S GMT", time.gmtime(st.st_mtime)))
+            self.end_headers()
+            if self.command == "HEAD":
+                return
+            with path.open("rb") as source:
+                shutil.copyfileobj(source, self.wfile, length=1024 * 1024)
         except BrokenPipeError:
             pass
 
+    def _error(self, code, message):
+        self._send(code, json.dumps({"error": message}, ensure_ascii=False), "application/json; charset=utf-8")
+
+    def _android_apk(self, m, code_qs=None):
+        if code_qs is not None and code_qs != int(m["versionCode"]):
+            self._error(409, f"清单已是 versionCode {int(m['versionCode'])}，请重新读取 Android 更新清单")
+            return
+        path = verified_apk(m)
+        if path is None:
+            self._error(503, "APK 与清单不一致或缺失")
+            return
+        self._serve_file(path, "application/vnd.android.package-archive", f"nightdesk-{m['versionName']}.apk")
+
+    def _windows_package(self, m):
+        path = verified_windows_package(m)
+        if path is None:
+            self._error(503, "Windows ZIP 与清单不一致或缺失")
+            return
+        self._serve_file(path, "application/zip", path.name)
+
     def do_GET(self):
         try:
-            self._handle(head=False)
+            self._handle()
         except BrokenPipeError:
             pass
 
     def do_HEAD(self):
-        self._handle(head=True)
+        self._handle()
 
-    def _handle(self, head):
-        parse = urlparse(self.path)
-        path = parse.path
-        qs = {k: v[-1] for k, v in parse_qs(parse.query).items()}
-        m = load_manifest()
+    def _handle(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        qs = {k: v[-1] for k, v in parse_qs(parsed.query).items()}
+        android = load_android_manifest()
+        windows = load_windows_manifest()
 
         if path in ("/", "/nightdesk", "/nightdesk/"):
-            if m is None:
-                self._send(204, b"")
-                return
-            code = int(m["versionCode"])
-            page = INDEX_HTML.format(
-                version=html.escape(m["versionName"]), code=code,
-                size=int(m["size"]), sha=m["sha256"],
-                notes=html.escape(m.get("notes", "")))
-            self._send(200, page, "text/html; charset=utf-8", {"cache": "no-store"})
+            page = render_index(android, windows)
+            self._send(200, page, "text/html; charset=utf-8")
             return
 
         if path == "/healthz":
-            code = 200 if m is not None else 503
-            self._send(code, "ok" if m is not None else "no manifest", "text/plain; charset=utf-8")
+            healthy = android is not None and windows is not None
+            state = f"android={'ok' if android else 'missing'} windows={'ok' if windows else 'missing'}"
+            self._send(200 if healthy else 503, ("ok " if healthy else "degraded ") + state, "text/plain; charset=utf-8")
             return
 
         if path in ("/nightdesk/latest.apk", "/latest.apk"):
-            if m is None:
-                self._send(204, b""); return
-            self._serve_apk(m, lambda c: f"nightdesk-{m['versionName']}.apk", None)
+            if android is None:
+                self._error(503, "Android 更新清单不可用")
+            else:
+                self._android_apk(android)
             return
 
         if (path.startswith("/nightdesk/nightdesk-") or path.startswith("/nightdesk-")) and path.endswith(".apk"):
-            if m is None:
-                self._send(204, b""); return
+            if android is None:
+                self._error(503, "Android 更新清单不可用")
+                return
             stem = path.split("/nightdesk-", 1)[-1][:-len(".apk")]
-            target_apk = ROOT / f"nightdesk-{stem}.apk"
-            if not target_apk.is_file():
+            target = ROOT / f"nightdesk-{stem}.apk"
+            if not target.is_file():
                 self._error(404, "没有该版本的 APK")
-                return
-            body = target_apk.read_bytes()
-            self._send(200, body, "application/vnd.android.package-archive",
-                       {"cache": "public, max-age=3600",
-                        "Content-Disposition": f'attachment; filename="{target_apk.name}"'})
+            else:
+                self._serve_file(target, "application/vnd.android.package-archive", target.name)
             return
 
-        if path == "/api/v1/android-update":
-            if m is None:
-                self._send(204, b"")
-                return
-            self._send(200, json.dumps(m), "application/json; charset=utf-8")
+        if path in ("/api/v1/android-update", "/nightdesk/api/v1/android-update"):
+            if android is None:
+                self._error(503, "Android 更新清单不可用")
+            else:
+                self._send(200, json.dumps(android), "application/json; charset=utf-8")
             return
 
-        if path == "/api/v1/android-apk":
-            if m is None:
-                self._send(204, b"")
+        if path in ("/api/v1/android-apk", "/nightdesk/api/v1/android-apk"):
+            if android is None:
+                self._error(503, "Android 更新清单不可用")
                 return
             raw = qs.get("versionCode")
-            code_qs = int(raw) if raw and raw.isdigit() else None
-            self._serve_apk(m, lambda c: f"nightdesk-{m['versionName']}.apk", code_qs)
+            code = int(raw) if raw and raw.isdigit() else None
+            self._android_apk(android, code)
+            return
+
+        if path in ("/api/v1/windows-update", "/nightdesk/api/v1/windows-update"):
+            if windows is None:
+                self._error(503, "Windows 更新清单不可用")
+            else:
+                self._send(200, json.dumps(windows), "application/json; charset=utf-8")
+            return
+
+        if path in ("/nightdesk/windows/latest.zip", "/windows/latest.zip"):
+            if windows is None:
+                self._error(503, "Windows 更新清单不可用")
+            else:
+                self._windows_package(windows)
+            return
+
+        if (path.startswith("/nightdesk/windows/nightdesk-windows-") or path.startswith("/windows/nightdesk-windows-")) and path.endswith(".zip"):
+            version = path.rsplit("nightdesk-windows-", 1)[-1][:-len(".zip")]
+            if not VERSION_RE.match(version):
+                self._error(400, "Windows 版本号无效")
+                return
+            target = ROOT / "windows" / f"nightdesk-windows-{version}.zip"
+            if not target.is_file():
+                self._error(404, "没有该版本的 Windows 包")
+            else:
+                self._serve_file(target, "application/zip", target.name)
+            return
+
+        if path in ("/api/v1/windows-package", "/nightdesk/api/v1/windows-package"):
+            if windows is None:
+                self._error(503, "Windows 更新清单不可用")
+                return
+            requested = qs.get("version", windows["version"])
+            if requested != windows["version"]:
+                self._error(409, f"清单已是 Windows {windows['version']}，请重新读取更新清单")
+                return
+            self._windows_package(windows)
             return
 
         self._error(404, "未知路径")

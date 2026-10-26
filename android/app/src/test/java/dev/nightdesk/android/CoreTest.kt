@@ -11,6 +11,11 @@ class CoreTest {
     private val origin = "https://minipc-xoh4t.tail9f7f1f.ts.net"
 
     @Test
+    fun exposesFourStableUiPages() {
+        assertEquals(listOf("首页", "显示", "远控", "更新"), AppPages.names)
+        assertEquals(AppPages.names.size, AppPages.names.distinct().size)
+    }
+    @Test
     fun allowsOnlyTailscaleHttps() {
         assertEquals(origin, Endpoints.origin("$origin/"))
         listOf(

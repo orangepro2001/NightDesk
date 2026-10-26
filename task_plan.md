@@ -42,6 +42,7 @@
 24. [done] Repair the Windows XAML startup crash, add a static regression test, republish the Windows candidate and pass WPF startup smoke verification.
 25. [done] Publish Android 1.1.0 (versionCode 7) to the AI feed, back up the old manifest, verify immutable APK/alias/manifest atomically, and re-run the 4 live-feed instrumented tests.
 26. [done] Add desktop-to-desktop control to the Windows app: address/code/fingerprint input, pinned C# QUIC viewer window, safe input handling, synthetic host integration test and 1.5.0 recovery documentation.
+27. [in progress] Paginate and redesign the Windows and Android UIs, fix field/text overlap, add Windows auto-download updates, and publish both Windows and Android through the AI feed.
 
 ## Verification invariants
 
@@ -110,3 +111,21 @@ Goal: let a Windows NightDesk instance control another Windows NightDesk go-nx h
 5. [done] Rebuild/publish the Windows candidate, record tests, hashes and manual acceptance limits in timestamped documentation.
 
 Success criteria: entering a reachable host address and the current pairing code opens a live control window; a wrong code or wrong fingerprint fails closed; closing the viewer releases all input; synthetic frames and input receipts pass without touching the display topology.
+
+## Current feature plan: paginated UI, desktop updates, mobile UI
+
+1. [done] Split the WPF window into clear pages (overview, display, remote access, control desktop, updates/diagnostics) and remove the single long scroll layout.
+2. [done] Add consistent field spacing and wrapping so labels, values, hints and buttons cannot overlap at the supported window sizes.
+3. [done] Split the Android app into persistent bottom navigation pages (home, display, remote control, updates) with a compact status header.
+4. [done] Add a Windows update client: startup/6-hour check, automatic verified download, staged install helper and user-confirmed restart.
+5. [done] Extend the AI feed to serve immutable Windows ZIPs plus an atomic Windows manifest alongside the existing Android feed.
+6. [ ] Run Windows tests/build/publish, Android JVM/lint/instrumented/emulator smoke tests, publish Windows 1.6.0 and Android 1.2.0, verify live downloads, and document recovery.
+
+### UI/update implementation verification (2026-10-27 KST)
+
+- Windows: 210 tests passed, serial Release build 0 warnings/errors.
+- Layout: isolated XAML renderer verified 5 pages at 980 and 1180 DIP; all remote-control inputs have distinct columns. No application services started.
+- Installer: the actual helper replaced two synthetic files in a temporary directory, preserved backups and restarted a synthetic WinExe. Production processes untouched.
+- AI Android 1.2.0: 27 JVM tests, lint 0 errors/22 warnings, 5 instrumented tests passed; bottom navigation and system-bar insets verified.
+- Feed: 5 Python tests passed for Android compatibility, Windows manifest/ZIP, dual index and proxy-stripped routes.
+- Pending: build immutable Windows package from the implementation commit, publish both releases on AI, verify HTTPS downloads, write timestamped release handoff.
