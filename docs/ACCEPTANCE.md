@@ -1,8 +1,8 @@
 # NightDesk 验收记录
 
-更新日期：2026-10-27（Asia/Seoul）
+更新日期：2026-10-28（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：NX viewer 全屏/可折叠侧栏和快捷键；追踪被控端物理鼠标光标闪烁路径；发布 Windows 1.6.3 / Android 1.3.3。历史颜色修复记录保留在第 2.3 节。
+本轮范围：发行目录清理；NX viewer 全屏/可折叠侧栏和快捷键；追踪被控端物理鼠标光标闪烁路径；发布 Windows 1.6.3 / Android 1.3.3。历史颜色修复记录保留在第 2.3 节。
 
 ## 1. 当前交付状态
 
@@ -19,7 +19,7 @@
 
 [双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk) · [Windows ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip) · [Android APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 
-完整恢复说明见 `C:\dev\NightDesk\docs\20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md`。
+完整恢复说明见 `C:\dev\NightDesk\docs\20261028-065453-release-directory-cleanup-handoff.md` 和上一阶段 `C:\dev\NightDesk\docs\20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md`。
 
 ## 2. 自动化结果（本轮已复核）
 
@@ -39,6 +39,7 @@
 | Android Go AAR | 已从修复后的 gomobile 核心重建，SHA-256 `bfa20670742caace05c940fd68fc790b3bf49b6a431d8f2268712936d08f22ad` | AI 主机交叉构建 |
 | Android 更新 | code 12 emulator 的线上更新流、APK 校验和安装通过；最终包信息为 1.3.3/code 12 | 非物理手机远控验收 |
 | 线上清单/HEAD | Windows 1.6.3 / Android 1.3.3；HTTP 200，Content-Length 与清单一致 | 更新源发布，不代表真实远控验收 |
+| 发行目录清理 | 本机正式发行文件只剩 1.3.3 APK / 1.6.3 ZIP；AI 只剩 code 12、1.6.3 ZIP 及当前 Android 别名；完整 HTTPS GET 成功、包哈希匹配、旧 1.3.2/1.6.2 定向地址 404 | 测试/调试材料、清单备份和恢复材料保留 |
 | VDD 载荷 | 原有大小/签名/提取/篡改拒绝断言通过 | 不执行真实驱动安装 |
 
 Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名。生产升级、真实 GDI/SendInput、DPI/UAC、物理 Android 和双机 tailnet 仍待人工验收。
@@ -66,7 +67,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - Go frame 与 tile payload 保持 BGRA，未改变线上协议。
 - Android AI 模拟器色条 Red 复现：BGRA `[0,0,255,0]` 按原逻辑导入/绘制成蓝色。现将每像素 B/R 互换为 `ARGB_8888` 预期缓冲顺序，并在同一循环把 GDI 未定义 alpha 置为不透明；没有新增整帧遍历。纯红/绿/蓝及非对称 RGB 仪器回归通过。
 - WPF viewer 原先把 GDI 32-bit DIB 高字节作为 `Bgra32` alpha。现使用 `Bgr32` 忽略该字节，不触碰 tile 或逐像素重排；Windows 回归断言通过。
-- Android 1.3.2/code 11 与 Windows 1.6.2/10602 已发布。manifest、HTTPS HEAD 长度、完整 GET 大小与 SHA-256 均匹配，历史不可变 APK/ZIP 保留。
+- Android 1.3.2/code 11 与 Windows 1.6.2/10602 已发布。manifest、HTTPS HEAD 长度、完整 GET 大小与 SHA-256 均匹配；历史不可变 APK/ZIP 已于 2026-10-28 清理，当前版本和清单备份保留。
 - 更新链路验证：Windows updater 只在 temp cache staging 双 EXE，未调用安装 helper；Android emulator 从 code 10 运行 UpdateFlow 下载并校验，再从 HTTPS 安装实际 APK 至 code 11。不是生产程序更新。
 - Android 真机画面、Windows 实时 GDI alpha/色彩、HDR/ICC/广色域、物理双机体验均未在本轮验收；不能据模拟器/测试帧宣称所有硬件场景已完全验收。
 
@@ -246,7 +247,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - [x] 真实 Tailscale HTTPS 下载页、manifest、latest.apk 均返回 200，版本与哈希一致。
 - [x] 未启用 Funnel，其它 Serve 路由未被删除。
 - [ ] 重启 AI 后确认服务自动恢复、URL 仍可用。
-- [x] 1.3.0 发布时确认 APK 先落盘、版本别名次之、manifest 最后原子切换；服务仅在大小与 SHA-256 匹配时提供下载。旧版 1.2.0 / code 8 APK 保留。
+- [x] 1.3.0 发布时确认 APK 先落盘、版本别名次之、manifest 最后原子切换；服务仅在大小与 SHA-256 匹配时提供下载。旧版 1.2.0 / code 8 的发布记录和 manifest 备份保留，APK 已在 2026-10-28 清理。
 
 ### G. NX 远程控制端到端（需独立测试机与真机）
 
@@ -281,6 +282,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - Android 1.3.3 / versionCode 12 和 Windows 1.6.3 / code 10603 已发布。NX viewer 使用画面全屏与可折叠侧栏；Windows 215 项测试、Android 36 项 JVM 和 6 项当前仪器测试、构建及线上 artifact 核验通过。物理光标闪烁未复现，保持原行为，真实远控仍待隔离设备验收。
 - Android 1.3.0（versionCode 9）是历史版本：当时加入了不误触框选的点按/移动/长按拖动、双指滚动和常驻全量释放；历史验证通过不替代当前 1.3.3 的实机验收。
 - Android 1.3.0 已发布到 AI 更新源，APK 大小、SHA-256、签名及模拟器从 1.2.0 更新的流程已验证；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机手势和 tailnet UDP/QUIC **未验收**。
+- 2026-10-28 已完成本机和 AI 发行目录清理：正式分发只保留 Windows 1.6.3 与 Android 1.3.3；旧二进制定向 URL 返回 404，回滚需重新取得完整包，不能只恢复 manifest。
 - Windows 1.6.1 的光标合成改动已包含在当前 Windows 1.6.3 包中：捕获端将 Windows 系统指针绘入每帧，使既有移动输入位置可见。真实桌面抓屏像素、SendInput、DPI/UAC 和真机远控仍未验收；部署时必须将 ZIP 中两个 EXE 放在同一目录。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
 - go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不是通用远程桌面，不等同于 Sunshine/Parsec 视频串流。

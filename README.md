@@ -2,11 +2,12 @@
 
 原生 Windows WPF/Win32 工作台 + Kotlin Android 客户端，不使用 Electron。提供显示拓扑切换、Parsec VDD 管理、Tailscale HTTPS 管理、go-nx 低带宽无损 tile 远控和双平台更新分发。
 
-## 当前版本（2026-10-27 KST）
+## 当前版本（2026-10-28 KST）
 
 - Windows **1.6.3** / versionCode **10603**，sidecar **nx-host 0.2.1**；NX 远控改为可折叠侧栏，不再常驻遮挡画面的上下控制条。
 - Android **1.3.3** / versionCode **12**；NX 远控改为全屏画面与边缘侧栏，支持 F1 菜单、F2 手机键盘及全量释放。
 - 两份更新均已发布到 AI 服务。仅 tailnet 可达，未启用 Funnel。
+- 本机与 AI 更新源的正式发行目录现在只保留 Windows 1.6.3 与 Android 1.3.3；测试 APK、截图、日志、清单备份和恢复材料继续保留。旧版本定向下载地址已返回 404，latest 更新地址不变。
 - Windows 215 项断言、Release 构建 0 warnings / 0 errors；Android 36 项 JVM 测试、仪器/UI 与更新验证、lint 0 errors / 23 warnings 通过。模拟器已安装 Android code 12。
 - 被控端物理光标闪烁尚未在隔离 Windows 主机上复现；本轮未改光标显示策略。真实 GDI/SendInput、DPI/UAC、双机 UDP/QUIC 和 Android 真机体验仍需现场验收。
 
@@ -17,6 +18,8 @@
 - [Windows 更新清单](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/api/v1/windows-update)
 - [Android 1.3.3 APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 - [Android 更新清单](https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update)
+
+发行目录清理、保留清单、SHA-256 和回滚边界见：[2026-10-28 发行目录清理交接](C:/dev/NightDesk/docs/20261028-065453-release-directory-cleanup-handoff.md)。
 
 旧 Windows 客户端没有新更新器，第一次进入 1.6.0 需手动部署 ZIP 中的 **NightDesk.exe 与 nx-host.exe 两个文件**。必须同目录；不能只换主程序。1.6.0 之后启动时和每 6 小时自动检查并下载更高版本，安装前由用户确认“安装并重启”。不静默安装、不强杀主程序。helper 保留 .bak-update，目标目录需要可写。已有 1.6.0 及之后版本可下载 1.6.3 更新。
 
@@ -88,6 +91,7 @@ Android SDK/JDK/Gradle/adb/emulator/签名只在 SSH 主机 AI 使用；当前�
 ## 文档
 
 - [远控侧栏、光标闪烁调查与双端 1.6.3/1.3.3 恢复说明](C:/dev/NightDesk/docs/20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md)
+- [发行目录清理与最新分发保留](C:/dev/NightDesk/docs/20261028-065453-release-directory-cleanup-handoff.md)
 - [NX 颜色修复、双端 1.6.2/1.3.2 发布与恢复说明](C:/dev/NightDesk/docs/20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md)
 - [本轮远控光标修复、Windows 1.6.1 与恢复说明](C:/dev/NightDesk/docs/20261027-123458-windows-cursor-capture-1.6.1-handoff.md)
 - [分页 UI、更新分发、验收、回滚与现场边界](C:/dev/NightDesk/docs/20261027-080919-paginated-ui-desktop-update-1.6.0-handoff.md)

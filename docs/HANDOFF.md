@@ -1,9 +1,18 @@
 # NightDesk 交接文档
 
-更新时间：2026-10-27（Asia/Seoul）
+更新时间：2026-10-28（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
 当前实现：Windows 1.6.3 / nx-host 0.2.1 / Android 1.3.3；侧栏实现提交 `e75618d` 已推送到 `origin/main`
-最新阶段交接：`docs\20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md`
+最新阶段交接：`docs\20261028-065453-release-directory-cleanup-handoff.md`
+
+## 最新阶段：发行目录清理与最新分发保留（2026-10-28）
+
+- 本机 `artifacts` 的正式发行文件现在只保留 Android `nightdesk-1.3.3.apk`、Windows `nightdesk-windows-1.6.3.zip` 和 `win-x64-1.6.3`；旧最终 APK、旧 Windows ZIP、旧正式 `win-x64-*` 发布目录已删除。
+- AI `/home/tony/dev/nightdesk-update-feed` 现在只保留 `nightdesk-12.apk`、`nightdesk-1.3.3.apk -> nightdesk-12.apk` 和 `windows/nightdesk-windows-1.6.3.zip`。旧 APK/ZIP 及旧版本别名已删除。
+- 测试/调试 APK、截图、日志、NX 测试二进制、清单备份、服务脚本和恢复材料没有删除；它们不是正式分发文件。
+- 当前 APK/ZIP 大小与 SHA-256 和 manifest 匹配；AI 服务 `active`，`/nightdesk/healthz` 返回 `ok android=ok windows=ok`，当前 HTTPS 下载均为 200。旧版 1.3.2 APK 与 1.6.2 ZIP 的定向地址已为 404。
+- 清单备份只保留元数据，不含已删除二进制。回滚必须从源码或外部备份恢复完整包后重新发布，不能只恢复旧 manifest。
+- 详细删除清单、恢复说明和现场边界见 `docs\20261028-065453-release-directory-cleanup-handoff.md`。
 
 ## 最新阶段：NX 远控侧栏与被控端物理光标闪烁复核（2026-10-27）
 
@@ -16,7 +25,7 @@
 
 ## 最新阶段：NX 颜色修复与双端版本分发（2026-10-27）
 
-- 已发布 Windows 1.6.2 / 10602 与 Android 1.3.2 / code 11。AI 更新服务健康 `ok android=ok windows=ok`；两端 HTTPS manifest、HEAD 长度和实际下载 SHA-256 均匹配，历史 APK/ZIP 保留。
+- 已发布 Windows 1.6.2 / 10602 与 Android 1.3.2 / code 11。AI 更新服务健康 `ok android=ok windows=ok`；两端 HTTPS manifest、HEAD 长度和实际下载 SHA-256 均匹配。该阶段的历史 APK/ZIP 已在 2026-10-28 发行目录清理中删除，当前包和清单备份保留。
 - Android 根因由 AI 模拟器色条确认：Go/GDI tile 是 BGRA，直接拷入 Android `ARGB_8888` 缓冲区时红、蓝通道对调。现在在单次像素循环中交换 B/R 并强制 alpha=255；纯红/绿/蓝和非对称色条仪器测试通过。
 - WPF NX viewer 从 `PixelFormats.Bgra32` 改为 `PixelFormats.Bgr32`，将 GDI 32-bit DIB 的未定义高字节作为未使用字节，避免其被 WPF 当 alpha 混合。原始 Go/tile BGRA 协议不变。
 - Windows：211 项断言、0 warning/error Release build、AI Go test/vet/Windows cross-vet/build、合成 nx-probe 通过；真实 C# Windows 更新器从 live feed 下载并在隔离临时缓存校验候选，未安装。
@@ -26,9 +35,9 @@
 
 ## 1. 当前交付状态
 
-### Windows 桌面端 1.6.0 历史发布基线
+### Windows 桌面端 1.6.0 历史发布基线（旧本地目录已清理）
 
-- 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.6.0`
+- 发布时目录（已于 2026-10-28 清理）：`C:\dev\NightDesk\artifacts\win-x64-1.6.0`
 - `NightDesk.exe`：`201922308` 字节，SHA-256 `D5C1C09832AD80D638FE27AF9E68C41B8FF4E4DD0B5DCB89FAABC2559BE72E5D`，ProductVersion `1.6.0+93147b357a9b8497cd2be4c67d3af99668279724`；Windows ZIP 大小 `85183345`，SHA-256 `DE162EC69F0F9C9D2E855FC7A084B1C316B4D78284BE5B131FD393EC461004CB`。
 - `nx-host.exe`：`7938048` 字节，SHA-256 `17B420CE531270E28BEF58D42DD68F5C13CAC6C5FE4CBFD4FDDBB20051AD35E3`，`-version` 输出 `nx-host 0.2.0`。
 - 这两个文件必须同目录部署；`nx-host.exe` 是独立 Go sidecar，刻意不并入 single-file 主程序。
@@ -62,26 +71,26 @@
 
 ### Android 1.3.0 已发布版本（versionCode 9）
 
-- AI 不可变文件 `nightdesk-9.apk`；本地产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.3.0.apk`。
+- 发布时文件名（对应 APK 已于 2026-10-28 清理）：AI `nightdesk-9.apk`；本机 `C:\dev\NightDesk\artifacts\android\nightdesk-1.3.0.apk`。
 - 大小 55075280 字节；SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42`。
 - 发布证书保持 `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`。
 - 在 1.2.0 的四分页和安全连接流程上，远控手势调整为轻点单击、单指滑动移动光标、长按后拖动、双指滚动；增加常驻“释放”按钮、取消/失焦/退后台释放和系统栏安全区。
 - 36 JVM tests：CoreTest 10 + NxConnectionTest 10 + NxTest 7 + RemoteGestureTest 9；lint 0 errors / 23 warnings。
 - 6 instrumented tests：HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1；发布后模拟器从 code 8 更新到 code 9 的长度、SHA-256、签名和安装验证通过。
-- 1.2.0 / code 8 及更早版本仍作为历史 APK 保留。真实 Android 手机连接 Windows 后的 GDI / SendInput 仍需独立测试机验收。
-- 1.1.0、1.0.4 产物与历史清单保留；Android 不会接受自动降级。
+- 1.2.0 / code 8 及更早版本曾作为历史 APK 发布；对应二进制已在 2026-10-28 清理，历史交接文档与清单备份仍保留。真实 Android 手机连接 Windows 后的 GDI / SendInput 仍需独立测试机验收。
+- 1.1.0、1.0.4 的发布记录与历史清单保留，旧二进制不再保留；Android 不会接受自动降级。
 - 物理真机、真实 GDI/SendInput、双机 tailnet UDP/QUIC 仍未验收。
 
 
-### Android 1.0.4 历史版本（归档）
+### Android 1.0.4 历史版本（发布记录；分发包已清理）
 
-- 产物：`C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`
+- 历史产物路径（文件已于 2026-10-28 清理）：`C:\dev\NightDesk\artifacts\android\nightdesk-1.0.4.apk`
 - versionCode：**5**
 - 大小：`6991035` 字节
 - SHA-256：`906142e6abda3d193272b7f68adcb053d9cbbdd00fca40423b806e1d2979e436`
 - 签名证书 SHA-256：`41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`
 - 支持最多 20 台主机保存、切换、删除；schemaVersion 3；Keystore AES-GCM。
-- 保留在 AI 更新源，供旧客户端下载和清单回滚参考；Android 客户端不会接受降级。
+- 发布记录和清单备份保留作审计参考；对应 APK 已在 2026-10-28 清理。Android 客户端不会接受降级，回滚需重新取得完整 APK 并发布。
 
 ### 在线地址（仅 tailnet）
 
