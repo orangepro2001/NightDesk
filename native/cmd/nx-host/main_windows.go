@@ -38,7 +38,7 @@ import (
 	"github.com/orangepro2001/nightdesk/native/internal/trust"
 )
 
-const version = "0.2.0"
+const version = "0.2.1"
 
 const (
 	pairingWindow = 5 * time.Minute

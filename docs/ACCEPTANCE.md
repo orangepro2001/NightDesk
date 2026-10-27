@@ -2,24 +2,24 @@
 
 更新日期：2026-10-27（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：Android 远控手势与按键释放体验（1.3.0）；此前分页 UI、Windows 自动下载更新及 AI 双平台分发状态保留。
+本轮范围：复核移动端远控光标不可见问题并修复 Windows GDI 捕获端；Windows 1.6.1 已发布。Android 手势与释放体验维持 1.3.0。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
 | 最新实现提交 | `89ed923dae29d555e2c511fe6556c2dd8b563a80` |
-| Windows | 1.6.0 / 10600，AI ZIP 已发布；生产桌面未替换 |
-| Windows ZIP | 85183345 字节，SHA-256 `de162ec69f0f9c9d2e855fc7a084b1c316b4d78284be5b131fd393ec461004cb` |
-| Windows EXE | 201922308 字节，SHA-256 `d5c1c09832ad80d638fe27af9e68c41b8ff4e4dd0b5dcb89faabc2559be72e5d` |
-| nx-host | 0.2.0，7938048 字节，SHA-256 `17b420ce531270e28bef58d42dd68f5c13cac6c5fe4cbfd4fdbb20051ad35e3` |
+| Windows | 1.6.1 / 10601，AI ZIP 已发布；生产桌面未替换 |
+| Windows ZIP | 85184039 字节，SHA-256 `ae3de5075dca53b13d55d36409520c08f89fa405bb3d5fbcf1f67e624e64b7ae` |
+| Windows EXE | 201922308 字节，SHA-256 `962dbc32ec341661e6292c68c1331803f8b4475a896d834661ca70e9410fb74a` |
+| nx-host | 0.2.1，7940608 字节，SHA-256 `88233ba806d9a7ebe4bda5c66a2e4c61e0d9dc9b43c48787170ca68e6087b9f0` |
 | Android | 1.3.0 / 9，55075280 字节，SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42` |
 | Android 证书 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
 | 服务 | active / enabled；healthz = ok android=ok windows=ok |
 
 [双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk) · [Windows ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip) · [Android APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 
-完整恢复说明见 `C:\dev\NightDesk\docs\20261027-094700-android-mobile-remote-ux-1.3.0-handoff.md`。
+完整恢复说明见 `C:\dev\NightDesk\docs\20261027-123458-windows-cursor-capture-1.6.1-handoff.md`。
 
 ## 2. 自动化结果（本轮已复核）
 
@@ -34,10 +34,19 @@
 | Android lint/build | 0 errors / 23 warnings；release/debug/AndroidTest 构建通过 | AI 主机 |
 | Android 仪器 | OK (6 tests) | HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1 |
 | Android 手势 | 点按/移动/长按拖动/双指滚动/取消/强制释放覆盖通过 | 模拟器与 JVM；非真实 Windows 输入验收 |
-| 线上清单/HEAD | Windows 1.6.0 / Android 1.3.0；HTTP 200，长度/哈希一致 | 更新源发布，不代表真实远控验收 |
+| 线上清单/HEAD | Windows 1.6.1 / Android 1.3.0；HTTP 200，长度/哈希一致 | 更新源发布，不代表真实远控验收 |
 | VDD 载荷 | 原有大小/签名/提取/篡改拒绝断言通过 | 不执行真实驱动安装 |
 
 Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名。生产升级、真实 GDI/SendInput、DPI/UAC、物理 Android 和双机 tailnet 仍待人工验收。
+
+### 2.1 移动远控光标复核（Windows 1.6.1）
+
+- 已追踪 Android `mapToHost` → 手势 `Move` → gomobile `Session.move` → QUIC `KindMouseMove` → Windows `SendInput`，坐标链路可到达输入端。
+- 找到并修复可见反馈断点：Windows GDI `BitBlt` 不采集系统鼠标指针，而 Android 只显示接收的帧。现在 host 通过 `GetCursorInfo` / `GetIconInfo` / `DrawIconEx` 在发送前合成指针，再由现有 tile-diff/QUIC 送到 Android 和 Windows viewer。
+- Go geometry 单测覆盖 primary/secondary/negative monitor origin 与 hotspot。AI 上 Go tests/vet 和 Windows/amd64 cross-build 通过；Windows 210 项测试通过；test-mode 合成协议探针 4 帧、538 tiles、7/7 receipts 通过。
+- Windows 1.6.1 updater 已从真实 HTTPS feed 下载 ZIP、检查清单大小/SHA-256、解包并 staging 两个 EXE；**仅 staging，没有安装或重启**。线上 Windows manifest 为 1.6.1/10601，ZIP HEAD 200、长度匹配。
+- Android 不需要升级；APK 保持 1.3.0/code 9。Android 仪器套件 6 项本次复跑通过。
+- 真实 Windows cursor 像素 / 物理 SendInput / Android 真机及 DPI/UAC 仍需独立 Windows 测试机与 Android 真机。合成 `-inject log` 只证明协议操作回执，不是操作系统输入验收。
 
 
 ## 3. go-nx 远程控制（阶段 1-7）
@@ -239,7 +248,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 
 - Android 1.3.0（versionCode 9）已在 1.2.0 多主机、扫码绑定、永久设备令牌、独立更新源和 go-nx 远控基础上，加入不误触框选的点按/移动/长按拖动手势、双指滚动和常驻全量释放操作；36 项 JVM、6 项仪器测试、构建、签名与线上更新验证通过。
 - Android 1.3.0 已发布到 AI 更新源，APK 大小、SHA-256、签名及模拟器从 1.2.0 更新的流程已验证；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机手势和 tailnet UDP/QUIC **未验收**。
-- Windows 1.6.0 已发布、210 项测试通过，并通过真实 `nx-host.exe -test-mode` 与 WPF 控制窗口渲染冒烟。`Desktop\NightDesk.exe` 仍运行现有版本，本轮未替换；部署时必须把新版 `NightDesk.exe` 与 `nx-host.exe` 一起复制到同一目录。
+- Windows 1.6.1 / 10601 与 nx-host 0.2.1 已发布。捕获端将 Windows 系统指针绘入每帧，使既有移动输入位置可见；真实桌面抓屏像素、SendInput、DPI/UAC 和真机远控仍未验收。`Desktop\NightDesk.exe` 仍运行现有版本，本轮未替换；部署时必须将 ZIP 中两个 EXE 放在同一目录。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
 - go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不是通用远程桌面，不等同于 Sunshine/Parsec 视频串流。
 - 应用不提供任意 shell、文件访问或通用桌面控制接口。

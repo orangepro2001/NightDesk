@@ -140,3 +140,24 @@ Success criteria: a normal tap generates one balanced click; finger movement can
 - Android implementation and timestamped handoff pushed to `origin/main` as `89ed923dae29d555e2c511fe6556c2dd8b563a80`; `docs/HANDOFF.md` and `docs/ACCEPTANCE.md` were synchronized and pushed in follow-up commit `680f18f`.
 - Errors and resolutions: test file initially landed in the copied main source folder (moved to test); UI test initially waited from the Android main thread (moved wait outside callback); stale Android snapshot lacked matching source/old tests (synchronized all current `android/app/src` and rebuilt).
 - Remaining manual acceptance: use an Android phone and isolated Windows test host to verify real GDI/SendInput, the touch gestures, DPI, cancellation and recovery; do not perform this on the production desktop.
+
+## Current bug investigation: cursor visibility/movement
+
+Goal: verify the reported mobile cursor issue end-to-end and fix the first missing link found in the input/capture path.
+
+1. [done] Trace Android touch mapping → QUIC `KindMouseMove` → Windows `SendInput` → GDI capture → tile diff → Android rendering; confirm frame capture omitted the system pointer.
+2. [done] Composite the Windows cursor image into monitor-local GDI frames using `GetCursorInfo`, `GetIconInfo`, and `DrawIconEx`; account for monitor origin and cursor hotspot so the existing tile diff transmits its movement.
+3. [done] Add portable cursor geometry tests; run Go unit tests/vet and Windows cross-vet/build on SSH host AI; run the published-artifact synthetic QUIC probe and all 210 Windows tests.
+4. [done] Bump Windows/NX host to 1.6.1 / 0.2.1, publish the Windows ZIP to the AI update feed, verify HTTPS manifest and HEAD; update handoff and acceptance docs.
+
+Success criteria: the captured remote frame includes the host cursor at the position moved to by the existing input pipeline. Physical SendInput and real GDI visual confirmation on an isolated Windows host remain explicitly unverified.
+
+### Current verification and boundary (2026-10-27 KST)
+
+- Android coordinate mapping and protocol path were traced; no Android source change or APK release was needed. Root cause in the code path: GDI `BitBlt` copied desktop pixels but did not include the system cursor, while Android rendered only transmitted frame tiles.
+- Windows `Screen.Grab` now draws the actual cursor image into the captured monitor frame after `BitBlt`; hotspot and negative/secondary monitor origins are handled in tested portable geometry.
+- AI Go checks: `go test ./...`, `go vet ./...`, Windows/amd64 cross-`vet` and build passed. Host version is 0.2.1.
+- Safe end-to-end probe: 4 synthetic 1920×1080 frames, 538 tile updates, 7/7 input receipts; strict test mode logs input and does not call GDI or SendInput.
+- Windows suite: 210 passed; no display state changed. Windows publish produced NightDesk 1.6.1 and nx-host 0.2.1; update manifest is 1.6.1 / 10601 and HTTPS package HEAD returns 200 with expected length.
+- Not tested: actual Windows `GetCursorInfo`/`DrawIconEx` pixels on a live desktop, physical `SendInput`, Android phone, DPI/UAC/security desktop, or tailnet two-device session. Existing production processes/displays were not restarted or modified.
+- Android APK remains 1.3.0 / code 9; it was not rebuilt because the fix is in the Windows capture source and uses the existing tile protocol.

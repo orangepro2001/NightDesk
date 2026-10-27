@@ -2,12 +2,12 @@
 
 更新时间：2026-10-27（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前代码基线：`89ed923dae29d555e2c511fe6556c2dd8b563a80`（Windows 1.6.0 / Android 1.3.0）
-最新阶段交接：`docs\20261027-094700-android-mobile-remote-ux-1.3.0-handoff.md`
+当前实现：Windows 1.6.1 / nx-host 0.2.1 / Android 1.3.0
+最新阶段交接：`docs\20261027-123458-windows-cursor-capture-1.6.1-handoff.md`
 
 ## 1. 当前交付状态
 
-### Windows 桌面端 1.6.0 已发布版本
+### Windows 桌面端 1.6.0 历史发布基线
 
 - 发布目录：`C:\dev\NightDesk\artifacts\win-x64-1.6.0`
 - `NightDesk.exe`：`201922308` 字节，SHA-256 `D5C1C09832AD80D638FE27AF9E68C41B8FF4E4DD0B5DCB89FAABC2559BE72E5D`，ProductVersion `1.6.0+93147b357a9b8497cd2be4c67d3af99668279724`；Windows ZIP 大小 `85183345`，SHA-256 `DE162EC69F0F9C9D2E855FC7A084B1C316B4D78284BE5B131FD393EC461004CB`。
@@ -20,6 +20,15 @@
 - WPF 五分页为概览、显示、远程访问、控制桌面、更新与诊断；Windows 控制端位于“控制桌面”页，支持目标地址、6 位配对码、可选主机指纹、固定主机 pin 和独立 WPF 控制窗口；失焦/关闭释放输入。依赖 `System.Net.Quic`，当前要求 Windows 11 / Server 2022 或更新版本。
 - 控制窗口代码：`NxViewerProtocol.cs`、`NxViewerSession.cs`、`NxViewerWindow.cs`；本地 Viewer 状态在 `%LOCALAPPDATA%\NightDesk\nx-viewer`。
 - 远程控制新增 go-nx 低带宽数据面：Windows 启动受监控的 `nx-host.exe` sidecar，生成含证书指纹和短期配对码的二维码；Android 原生查看器可扫码、固定证书并绘制 tile。阶段 5 已完成连接状态机、超时/重试/重新配对、后台释放输入和旧回调隔离；构建、单测、仪器测试和模拟器冒烟通过。阶段 7 新增 `nx-probe` 安全端到端验收：用与 Android 相同的 pinned TLS / 配对 / QUIC / tile 解码路径，在 1920×1080 合成动态源上验证 4 帧、538 个 tile 更新和 7/7 输入回执，不抓屏、不调用 SendInput。**真实 GDI 抓屏、SendInput 与真机 tailnet 仍未验收**。详见 `docs/20261027-041844-remote-control-stage-7-safe-e2e-probe-handoff.md`。
+
+### Windows 1.6.1 当前光标可见性修复
+
+- 更新包已发布到 AI 更新源：1.6.1 / 10601，ZIP 85,184,039 字节，SHA-256 `ae3de5075dca53b13d55d36409520c08f89fa405bb3d5fbcf1f67e624e64b7ae`；host 0.2.1。
+- 根因：Android touch → `Session.move` → `KindMouseMove` → Windows `SendInput` 已有路径；但 Windows GDI `BitBlt` 捕获不包含系统 cursor，Android 只画接收到的帧 tiles，用户因此看不到远端指针。
+- `Screen.Grab` 现在通过 `GetCursorInfo` / `GetIconInfo` / `DrawIconEx` 把 host cursor 合成进抓屏帧。合成发生在 tile diff 之前，远端指针位置更新将随相关 tile 到达手机和 Windows viewer。协议及 APK 均无需修改。
+- Go 单测/vet 与 Windows amd64 交叉构建通过；合成 log-only QUIC 探针通过，210 项 Windows suite 通过；AI 更新清单与 HTTPS HEAD 已复核。
+- Android 仍是 1.3.0 / code 9，不需要为此修复重发 APK。
+- **仍未通过真实设备验收**：物理 Windows `SendInput`、实时 GDI 指针像素、Android 真机/双机 tailnet、不同 DPI/UAC。未修改生产桌面进程或显示器状态。
 
 ### Android 1.3.0 已发布版本（versionCode 9）
 

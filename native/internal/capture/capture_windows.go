@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/orangepro2001/nightdesk/native/internal/cursor"
 	"github.com/orangepro2001/nightdesk/native/internal/tile"
 )
 
@@ -36,6 +37,9 @@ var (
 	deleteObj = gdi32.NewProc("DeleteObject")
 	deleteDC  = gdi32.NewProc("DeleteDC")
 	bitBlt    = gdi32.NewProc("BitBlt")
+	drawIcon  = user32.NewProc("DrawIconEx")
+	getCursor = user32.NewProc("GetCursorInfo")
+	getIcon   = user32.NewProc("GetIconInfo")
 	getDPI    = shcore.NewProc("GetDpiForMonitor")
 	setCtx    = user32.NewProc("SetProcessDpiAwarenessContext")
 
@@ -51,6 +55,8 @@ const (
 	srccopy                 = 0x00CC0020
 	captureBlt              = 0x40000000  // include layered windows
 	dpiAwarePerMonitorV2    = ^uintptr(3) // (DPI_AWARENESS_CONTEXT)-4
+	cursorShowing           = 0x00000001
+	diNormal                = 0x00000003
 )
 
 // Display describes one monitor in virtual-desktop coordinates.
@@ -86,6 +92,20 @@ func EnableDPIAwareness() {
 }
 
 type rect struct{ Left, Top, Right, Bottom int32 }
+
+type point struct{ X, Y int32 }
+
+type cursorInfo struct {
+	Size, Flags uint32
+	Cursor      uintptr
+	Position    point
+}
+
+type iconInfo struct {
+	IsIcon             uint32
+	HotspotX, HotspotY uint32
+	Mask, Color        uintptr
+}
 
 type monitorInfoEx struct {
 	Size    uint32
@@ -262,8 +282,33 @@ func (s *Screen) Grab(dst *tile.Frame) error {
 	if r == 0 {
 		return fmt.Errorf("capture: BitBlt failed: %v", err)
 	}
+	s.drawCursor()
 	copy(dst.Pix, unsafe.Slice((*byte)(s.pixels), len(dst.Pix)))
 	return nil
+}
+
+// drawCursor composites the Windows cursor after BitBlt, which does not capture
+// the system cursor. This makes the pointer visible in every remote viewer.
+func (s *Screen) drawCursor() {
+	info := cursorInfo{Size: uint32(unsafe.Sizeof(cursorInfo{}))}
+	if result, _, _ := getCursor.Call(uintptr(unsafe.Pointer(&info))); result == 0 ||
+		info.Flags&cursorShowing == 0 || info.Cursor == 0 {
+		return
+	}
+
+	hotspotX, hotspotY := uint32(0), uint32(0)
+	icon := iconInfo{}
+	if result, _, _ := getIcon.Call(info.Cursor, uintptr(unsafe.Pointer(&icon))); result != 0 {
+		hotspotX, hotspotY = icon.HotspotX, icon.HotspotY
+		if icon.Mask != 0 {
+			defer deleteObj.Call(icon.Mask)
+		}
+		if icon.Color != 0 {
+			defer deleteObj.Call(icon.Color)
+		}
+	}
+	x, y := cursor.DrawPosition(s.display.X, s.display.Y, info.Position.X, info.Position.Y, hotspotX, hotspotY)
+	drawIcon.Call(s.memDC, uintptr(x), uintptr(y), info.Cursor, 0, 0, 0, 0, diNormal)
 }
 
 func (s *Screen) Close() {
