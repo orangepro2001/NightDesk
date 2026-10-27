@@ -7,11 +7,13 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.InputType
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewConfiguration
 import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
@@ -21,9 +23,11 @@ import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import java.io.File
 import java.util.concurrent.Executors
-import kotlin.math.abs
 
 class RemoteActivity : ComponentActivity() {
     private val io = Executors.newSingleThreadExecutor()
@@ -32,6 +36,7 @@ class RemoteActivity : ComponentActivity() {
     private lateinit var status: TextView
     private lateinit var retryButton: Button
     private lateinit var pairButton: Button
+    private lateinit var touchControls: RemoteTouchControls
     private lateinit var host: NxHost
     private val connectionState = NxConnectionModel()
     @Volatile private var session: mobile.Session? = null
@@ -42,17 +47,22 @@ class RemoteActivity : ComponentActivity() {
     private var persistedFrameWidth = -1
     private var persistedFrameHeight = -1
     private val timeoutHandler = Handler(Looper.getMainLooper())
+    private val gestureHandler = Handler(Looper.getMainLooper())
+    private lateinit var touchGesture: NxTouchGesture
+    private var longPressTimeoutMillis = NxTouchGesture.DefaultLongPressMillis
     private var currentCode = ""
     private var pairingDialogShowing = false
-
-    private var primaryPointer = MotionEvent.INVALID_POINTER_ID
-    private var leftDown = false
-    private var scrolling = false
-    private var lastScrollY = 0f
-    private var scrollAccumulator = 0f
+    private var touchSequence = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val touchConfig = ViewConfiguration.get(this)
+        longPressTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong()
+        touchGesture = NxTouchGesture(
+            longPressMillis = longPressTimeoutMillis,
+            moveSlopPx = touchConfig.scaledTouchSlop.toFloat(),
+            wheelStepPx = dp(28).toFloat()
+        )
         store = NxProfileStore(this)
         host = resolveHost(intent) ?: return
         currentCode = intent.getStringExtra(EXTRA_CODE).orEmpty()
@@ -84,6 +94,13 @@ class RemoteActivity : ComponentActivity() {
     private fun buildUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         setContentView(root)
+        WindowCompat.getInsetsController(window, root).isAppearanceLightStatusBars = false
+        WindowCompat.getInsetsController(window, root).isAppearanceLightNavigationBars = false
+        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
 
         screen = RemoteScreenView(this)
         root.addView(screen, FrameLayout.LayoutParams(
@@ -120,14 +137,8 @@ class RemoteActivity : ComponentActivity() {
             Gravity.TOP
         ))
 
-        val help = TextView(this).apply {
-            text = "单指拖动鼠标 · 双指上下滚动 · 界面失焦或切后台会自动断开并释放按键"
-            textSize = 11f
-            setTextColor(0xffc6d8d3.toInt())
-            setPadding(dp(12), dp(6), dp(12), dp(6))
-            setBackgroundColor(0xAA111817.toInt())
-        }
-        root.addView(help, FrameLayout.LayoutParams(
+        touchControls = RemoteTouchControls(this) { releaseAll() }
+        root.addView(touchControls, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.BOTTOM
@@ -276,7 +287,7 @@ class RemoteActivity : ComponentActivity() {
             NxConnectionPhase.Connecting ->
                 if (snapshot.pairingCodeProvided) "正在使用短期配对码连接 ${host.addr}…"
                 else "正在连接 ${host.addr}…"
-            NxConnectionPhase.Streaming -> "已连接 · 拖动鼠标，双指滚动"
+            NxConnectionPhase.Streaming -> "已连接 · 轻点单击，长按拖动"
             NxConnectionPhase.Disconnected -> "连接已断开，可点击“重试”"
             NxConnectionPhase.Background -> "已暂停：连接和按键已释放，返回后点击“重试”"
             NxConnectionPhase.Failed -> snapshot.failure?.let { friendlyError(it.code) } ?: "连接失败"
@@ -390,10 +401,14 @@ class RemoteActivity : ComponentActivity() {
         io.execute {
             try {
                 val active = session ?: throw IllegalStateException("尚未连接")
-                modifiers.forEach { active.keyDown(it.toLong()) }
-                active.keyDown(key.toLong())
-                active.keyUp(key.toLong())
-                modifiers.reversed().forEach { active.keyUp(it.toLong()) }
+                try {
+                    modifiers.forEach { active.keyDown(it.toLong()) }
+                    active.keyDown(key.toLong())
+                    active.keyUp(key.toLong())
+                    modifiers.reversed().forEach { active.keyUp(it.toLong()) }
+                } finally {
+                    runCatching { active.releaseAll() }
+                }
             } catch (e: Exception) {
                 runOnUiThread { if (!destroyed) toast(e.message ?: "发送按键失败") }
             }
@@ -405,9 +420,13 @@ class RemoteActivity : ComponentActivity() {
         io.execute {
             try {
                 val active = session ?: throw IllegalStateException("尚未连接")
-                active.move(point.x.toLong(), point.y.toLong())
-                active.mouseDown(1L)
-                active.mouseUp(1L)
+                try {
+                    active.move(point.x.toLong(), point.y.toLong())
+                    active.mouseDown(1L)
+                    active.mouseUp(1L)
+                } finally {
+                    runCatching { active.releaseAll() }
+                }
             } catch (e: Exception) {
                 runOnUiThread { if (!destroyed) toast(e.message ?: "右键失败") }
             }
@@ -415,60 +434,56 @@ class RemoteActivity : ComponentActivity() {
     }
 
     private fun onRemoteTouch(view: View, event: MotionEvent): Boolean {
+        val now = event.eventTime
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                val point = screen.mapToHost(event.x, event.y) ?: return true
-                primaryPointer = event.getPointerId(0)
-                leftDown = true
-                sendInput { it.move(point.x.toLong(), point.y.toLong()); it.mouseDown(0L) }
+                cancelLongPress()
+                touchSequence++
+                val point = screen.mapToHost(event.x, event.y) ?: run {
+                    sendGestureActions(touchGesture.onCancel())
+                    return true
+                }
+                sendGestureActions(touchGesture.onDown(event.x, event.y, point, now))
+                val sequence = touchSequence
+                gestureHandler.postDelayed({
+                    if (!destroyed && sequence == touchSequence) {
+                        sendGestureActions(touchGesture.onLongPress(SystemClock.uptimeMillis()))
+                    }
+                }, longPressTimeoutMillis)
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
-                if (event.pointerCount == 2 && leftDown) {
-                    leftDown = false
-                    sendInput { it.mouseUp(0L) }
-                    scrolling = true
-                    scrollAccumulator = 0f
-                    lastScrollY = centroidY(event)
-                }
+                cancelLongPress()
+                touchSequence++
+                sendGestureActions(touchGesture.onPointerDown(centroidY(event)))
             }
             MotionEvent.ACTION_MOVE -> {
-                if (scrolling && event.pointerCount >= 2) {
-                    val y = centroidY(event)
-                    val threshold = dp(28).toFloat()
-                    scrollAccumulator += lastScrollY - y
-                    val steps = (scrollAccumulator / threshold).toInt()
-                    if (steps != 0) {
-                        scrollAccumulator -= steps * threshold
-                        val delta = steps * 120
-                        sendInput { it.wheel(delta.toLong()) }
-                    }
-                    lastScrollY = y
-                } else if (leftDown && !scrolling) {
-                    val pointer = event.findPointerIndex(primaryPointer)
-                    if (pointer >= 0) {
-                        val point = screen.mapToHost(event.getX(pointer), event.getY(pointer))
-                        if (point != null) sendInput { it.move(point.x.toLong(), point.y.toLong()) }
-                    }
+                if (event.pointerCount >= 2 && touchGesture.isScrolling) {
+                    sendGestureActions(touchGesture.onTwoFingerMove(centroidY(event)))
+                } else if (event.pointerCount == 1) {
+                    val point = screen.mapToHost(event.x, event.y)
+                    sendGestureActions(touchGesture.onMove(event.x, event.y, point, now))
+                    if (!touchGesture.isTapPending) cancelLongPress()
                 }
+            }
+            MotionEvent.ACTION_POINTER_UP -> {
+                cancelLongPress()
+                touchSequence++
+                sendGestureActions(touchGesture.onPointerUp())
             }
             MotionEvent.ACTION_UP -> {
-                if (scrolling) {
-                    scrolling = false
-                    scrollAccumulator = 0f
-                } else if (leftDown) {
-                    screen.mapToHost(event.x, event.y)?.let { point ->
-                        sendInput { it.move(point.x.toLong(), point.y.toLong()); it.mouseUp(0L) }
-                    }
-                    leftDown = false
-                }
-                primaryPointer = MotionEvent.INVALID_POINTER_ID
+                cancelLongPress()
+                touchSequence++
+                sendGestureActions(touchGesture.onUp(screen.mapToHost(event.x, event.y)))
             }
             MotionEvent.ACTION_CANCEL -> {
-                leftDown = false
-                scrolling = false
-                scrollAccumulator = 0f
-                primaryPointer = MotionEvent.INVALID_POINTER_ID
-                releaseAll()
+                cancelLongPress()
+                touchSequence++
+                sendGestureActions(touchGesture.onCancel())
+            }
+            MotionEvent.ACTION_OUTSIDE -> {
+                cancelLongPress()
+                touchSequence++
+                sendGestureActions(touchGesture.onCancel())
             }
         }
         return true
@@ -482,28 +497,60 @@ class RemoteActivity : ComponentActivity() {
         return total / count
     }
 
-    private fun sendInput(block: (mobile.Session) -> Unit) {
+    private fun sendGestureActions(actions: List<NxTouchAction>) {
+        if (actions.isEmpty()) return
+        if (actions.any { it is NxTouchAction.BeginDrag }) {
+            runOnUiThread { if (!destroyed && ::touchControls.isInitialized) touchControls.showDragging() }
+        } else if (actions.any { it is NxTouchAction.EndDrag || it is NxTouchAction.ReleaseAll }) {
+            runOnUiThread { if (!destroyed && ::touchControls.isInitialized) touchControls.showDefaultHint() }
+        }
         io.execute {
+            val active = session
             try {
-                val active = session ?: return@execute
-                block(active)
+                active ?: return@execute
+                actions.forEach { action ->
+                    when (action) {
+                        is NxTouchAction.Move -> active.move(action.x.toLong(), action.y.toLong())
+                        is NxTouchAction.Click -> {
+                            active.move(action.x.toLong(), action.y.toLong())
+                            active.mouseDown(0L)
+                            active.mouseUp(0L)
+                        }
+                        is NxTouchAction.BeginDrag -> {
+                            active.move(action.x.toLong(), action.y.toLong())
+                            active.mouseDown(0L)
+                        }
+                        is NxTouchAction.EndDrag -> {
+                            active.move(action.x.toLong(), action.y.toLong())
+                            active.mouseUp(0L)
+                        }
+                        is NxTouchAction.Scroll -> active.wheel(action.delta.toLong())
+                        NxTouchAction.ReleaseAll -> active.releaseAll()
+                    }
+                }
             } catch (_: Exception) {
+                runCatching { active?.releaseAll() }
             }
         }
     }
 
     private fun releaseAll() {
-        val active = session ?: return
-        io.execute { runCatching { active.releaseAll() } }
+        cancelLongPress()
+        touchSequence++
+        sendGestureActions(touchGesture.onReleaseAll())
+    }
+
+    private fun cancelLongPress() {
+        gestureHandler.removeCallbacksAndMessages(null)
     }
 
     private fun closeTransport(clearScreen: Boolean) {
         val previous = session
         session = null
-        leftDown = false
-        scrolling = false
-        primaryPointer = MotionEvent.INVALID_POINTER_ID
-        if (clearScreen) screen.clear()
+        cancelLongPress()
+        touchSequence++
+        touchGesture.onReleaseAll()
+        if (clearScreen && ::screen.isInitialized) screen.clear()
         io.execute {
             previous?.let {
                 runCatching { it.releaseAll() }
@@ -520,8 +567,6 @@ class RemoteActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus) {
-            leftDown = false
-            scrolling = false
             releaseAll()
         }
     }
@@ -541,6 +586,7 @@ class RemoteActivity : ComponentActivity() {
 
     override fun onDestroy() {
         timeoutHandler.removeCallbacksAndMessages(null)
+        gestureHandler.removeCallbacksAndMessages(null)
         val attempt = connectionState.snapshot().attempt
         if (attempt > 0) connectionState.background(attempt)
         destroyed = true

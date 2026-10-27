@@ -12,6 +12,24 @@
 - Android 1.2.0 / 8，55058900 字节，SHA-256 `82136d2992ff30c3bf84a5d45a02bc04bda4d38203880193883abb747100c52f`，AI 不可变文件 nightdesk-8.apk。
 - Android 发布证书保持 `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`。
 
+## Android 远控手势调查（2026-10-27）
+
+- 截图中远控页面提示“单指拖动鼠标”，普通触摸 `ACTION_DOWN` 当前就发送 `MouseDown(0)`，随后任何位移继续移动，容易把手指抖动解释为桌面拖选。
+- `ACTION_UP` 仅当落点仍可映射到远端画面时才发送鼠标移动和抬起；滑到 Letterbox 黑边可能造成左键残留。
+- 屏幕失焦、取消、退后台及销毁已有释放路径，但目前没有常驻的用户可操作“释放所有”按钮。
+- 本机正式 NightDesk / nx-host 只读检查是旧数据，不能在该远端桌面做真实点击/输入验收；使用纯 JVM 逻辑测试、AI 模拟器合成画面。
+- AI 可通过 SSH Alias 访问；既有 `/home/tony/dev/nightdesk-android-stage5` 保持不动，本功能使用独立 `/home/tony/dev/nightdesk-android-1.3.0` 复制目录，仅使用现有 `nightdesk-build` 和 `nightdesk-emulator` 任务会话，不操作 `main` tmux 会话。
+
+## Android 远控 UX 1.3.0 验证结果（2026-10-27）
+
+- 新 `NxTouchGesture` 把轻点、光标移动、长按拖动、双指滚动、取消和全量释放分开；所有 MouseDown/KeyDown 的中断异常路径由 `Session.releaseAll()` 兜底。
+- `RemoteTouchControls` 常驻底栏显示手势说明和 48dp 以上的醒目“释放”按钮；RemoteActivity 处理系统栏 inset，触摸抬起即使落在 letterbox 也释放拖动。
+- JVM：Core 10 + Connection 10 + NX 7 + Gesture 9 = 36 项通过。仪器：HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1 = 6 项通过。发布后另把模拟器暂时降到 v8，UpdateFlow 从真实 HTTPS 更新源下载、校验并恢复 v9，1 项通过。
+- lint 0 errors / 23 warnings；AI 完整构建和 AndroidTest 构建成功；release APK 元数据为 dev.nightdesk.android 1.3.0 / versionCode 9 / minSdk 29，原签名证书不变。
+- AI 更新服务 active；healthz `ok android=ok windows=ok`；线上 manifest、APK 路由、长度、SHA-256 和模拟器端下载校验匹配。
+- 产物大小 55,075,280 字节，SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42`；本地忽略产物 `artifacts/android/nightdesk-1.3.0.apk`。
+- Feed 保留 v8；发布前 manifest 备份 `manifest.json.pre-1.3.0-20261027-0945`。实际手机上的真实 Windows GDI/SendInput/tailnet 操作仍未验收。
+
 - Windows：210 tests passed. No display state changed. 串行 Release build 0 warnings / 0 errors。
 - WPF：纯 XAML 渲染 980/1180 DIP × 5 页通过，NX host/viewer 两组三字段的列和边界互不重叠。
 - 安装器：实际 helper 在隔离临时目录等待自有测试进程、替换双合成文件、保留备份、重启合成 WinExe；未安装生产程序。

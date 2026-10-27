@@ -115,3 +115,27 @@ Success criteria: entering a reachable host address and the current pairing code
 - AI Android 1.2.0: 27 JVM tests, lint 0 errors/22 warnings, 5 instrumented tests passed; bottom navigation and system-bar insets verified.
 - Feed: 5 Python tests passed for Android compatibility, Windows manifest/ZIP, dual index and proxy-stripped routes.
 - Published Windows 1.6.0 and Android 1.2.0 on AI; verified HTTPS manifests, lengths, hashes and actual Windows downloader. Handoff: docs/20261027-080919-paginated-ui-desktop-update-1.6.0-handoff.md
+
+## Current feature plan: Android remote-control touch UX
+
+Goal: prevent accidental desktop drag-selection, guarantee mouse/key release, and make mobile control discoverable and recoverable.
+
+1. [done] Add pure JVM gesture tests for tap-to-click, hover movement, long-press drag, two-finger scroll, cancel, and release.
+2. [done] Implement a deterministic Android touch state machine: tap clicks only on release, movement never holds left, long press starts drag, pointer cancellation releases all.
+3. [done] Add a persistent release-all control, update gesture instructions and expose active drag state.
+4. [done] Run Android JVM, lint, release, instrumented and emulator checks on AI; preserve signing identity and verify published download.
+5. [in progress] Write timestamped recovery/validation notes, update project handoff records, then commit and push the completed stage.
+
+Success criteria: a normal tap generates one balanced click; finger movement cannot select text or icons unless the user intentionally long-presses; all cancellation/focus/background/close paths release input; explicit release remains visible during remote control.
+
+### Current verification
+
+- Worktree was clean at `b5d8b88` before this feature.
+- Confirmed existing Android code sends `MouseDown` on every `ACTION_DOWN`, moves while it is held, and omits `MouseUp` when release coordinates map outside the host image.
+- Android build/test operations remain on SSH host `AI`; never interact with the unrelated `main` tmux session or production desktop input/display state.
+- AI Red run naturally failed before implementation (`NxTouchGesture` absent); after implementation all nine gesture tests pass.
+- AI build used an isolated copy under `/home/tony/dev/nightdesk-android-1.3.0`; the prior stage5 directory and unrelated `main` tmux session remain untouched. A stale stage5 source snapshot was replaced by the complete current Android source before final verification.
+- Final Android checks: 36 JVM tests; lint 0 errors / 23 warnings; release/debug/AndroidTest build passed; 6 full instrumented tests passed, including release-control UI; a post-publish 1.2.0 -> 1.3.0 emulator update/download/hash/signature test passed.
+- Android 1.3.0 / code 9 published to AI feed; immutable APK SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42`, size 55,075,280; signing certificate unchanged.
+- Errors and resolutions: test file initially landed in the copied main source folder (moved to test); UI test initially waited from the Android main thread (moved wait outside callback); stale Android snapshot lacked matching source/old tests (synchronized all current `android/app/src` and rebuilt).
+- Remaining next step: update `docs/HANDOFF.md` and `docs/ACCEPTANCE.md` to point to the new timestamped handoff, then commit and push this tested release stage.

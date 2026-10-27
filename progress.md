@@ -3,6 +3,19 @@
 更新时间：2026-10-27 08:09 KST（Asia/Seoul）
 最新恢复入口：docs/20261027-080919-paginated-ui-desktop-update-1.6.0-handoff.md
 
+## Android 移动远控体验（2026-10-27）
+
+- 重新开始：仓库干净，HEAD=`b5d8b88`；已读取现有状态机、截图、AI 构建/发布交接文档。
+- 根因证据：触摸按下立即发送左键按下，手指位移造成拖选；释放坐标映射失败会跳过 MouseUp。
+- 已新增待运行的纯 JVM 回归用例，覆盖点按、光标移动、长按拖动、双指滚动、取消及显式释放。
+- AI Android 工具链仍在 AI；为本阶段复制独立构建目录 `/home/tony/dev/nightdesk-android-1.3.0`，未改动旧 stage5 目录和其它 tmux 会话。
+- Red 已执行：新测试在没有 `NxTouchGesture`/`NxTouchAction` 时按预期失败；实现后 36 项 JVM 测试全部通过。
+- 手势调整：轻点在抬手发一次左键单击；未长按的移动只移动鼠标；系统长按计时器后移动才按住左键拖动；双指纵向滚动；取消、多指切换、失焦、连接关闭、页面后台和销毁均释放。
+- UI 调整：远控底栏用短提示解释四种手势，保留 48dp“释放”按钮；释放所有鼠标按钮和键盘键，拖动时提示抬手结束；全屏安全区已加入系统栏 inset。
+- Android AI 完整构建成功；lint 0 errors / 23 warnings；instrumented 全套 6 项通过。发布后模拟器从 Android 1.2.0 / code8 实测更新下载到 1.3.0 / code9、大小/SHA/签名均匹配，最后恢复模拟器为 code9。
+- Feed 发布成功：manifest versionCode 9，APK 55,075,280 bytes，SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42`。保留旧 APK v8，发布前清单备份为 `manifest.json.pre-1.3.0-20261027-0945`。
+- 当前阶段：功能、构建、模拟器更新链路均完成；下一步写详细 timestamped handoff、更新项目概览，然后提交并推送两阶段记录。
+
 ## 当前交付状态
 
 - 实现提交：`93147b357a9b8497cd2be4c67d3af99668279724`。
