@@ -91,4 +91,4 @@
 - 双端已发布：Windows 1.6.2/10602 ZIP 85,184,082 bytes SHA-256 `9856a7c03b9dff7b5ed89fbf106a597add1ec983a8f1b43db340fbfd13694717`；Android 1.3.2/code11 APK 55,076,236 bytes SHA-256 `1f5fc894074d468f92b6f19f0fbea64be1f7c55c1df696544690d630a0206118`。HTTPS manifests/HEAD/download hashes一致，签名证书保持不变，health `ok android=ok windows=ok`。
 - 备份：Android manifest `/home/tony/dev/nightdesk-update-feed/manifest.json.pre-nx-colors-1.3.2-20261027-1625`；Windows manifest `/home/tony/dev/nightdesk-update-feed/windows-manifest.json.bak-20261027-162723`。旧 immutable artifacts 保留。
 - 生产桌面未替换、重启或运行真实 GDI/SendInput；HDR/ICC/多 DPI、真机/双机 tailnet 仍需现场验收。详细复建见 `docs/20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`。
-- 本地代码、版本、README、handoff 与 acceptance 文件已更新；下一步复核 git diff/status，提交并推送到 `origin/main`。
+- 本地代码、版本、README、handoff 与 acceptance 文件已更新；提交 `f4c95c5` 已推送到 `origin/main`。补充记录后应保持工作区干净。

@@ -2,7 +2,7 @@
 
 更新时间：2026-10-27（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前实现：Windows 1.6.2 / nx-host 0.2.1 / Android 1.3.2
+当前实现：Windows 1.6.2 / nx-host 0.2.1 / Android 1.3.2；本轮提交 `f4c95c5` 已推送到 `origin/main`
 最新阶段交接：`docs\20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`
 
 ## 最新阶段：NX 颜色修复与双端版本分发（2026-10-27）

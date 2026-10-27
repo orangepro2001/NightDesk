@@ -2,7 +2,7 @@
 
 更新时间：2026-10-27 16:38 KST（Asia/Seoul）
 仓库：`C:\dev\NightDesk`
-分支：`main`（本轮提交待推送）
+分支：`main`（提交 `f4c95c5` 已推送到 `origin/main`）
 范围：NX Android / Windows viewer 像素格式修复；Windows 1.6.2 / Android 1.3.2 构建、分发、校验和恢复说明。
 
 ## 交付结论

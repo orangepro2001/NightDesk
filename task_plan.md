@@ -197,13 +197,13 @@ Goal: identify and fix the reported NX color rendering issue with color-bar regr
 3. [done] Apply the minimal correct color/alpha/rendering fix and polish the NX viewing path; rerun Go, Android, and Windows pixel-format checks.
 4. [done] Build Windows 1.6.2/code 10602 and Android 1.3.2/code 11 candidates with full platform verification.
 5. [done] Publish immutable packages, verify HTTPS manifests/hashes and Android emulator update path.
-6. [in progress] Update README, acceptance and timestamped recovery docs; commit and push source plus documentation.
+6. [done] Update README, acceptance and timestamped recovery docs; commit and push source plus documentation.
 
 Release note policy: this is a maintenance re-release of the current feature set; do not claim unimplemented functionality. Keep the Android signing identity and Windows sidecar version 0.2.1 unchanged. Never overwrite existing immutable feed artifacts.
 
 ### Current observations
 
-- Workspace started on `main` at `c1f37f2` with user-requested version edits and task records already modified; preserve these changes. New code and recovery docs are now in this worktree; push is pending.
+- Workspace started on `main` at `c1f37f2`; user-requested version edits and task records were preserved. Source and recovery docs are committed and pushed.
 - AI update service is active and health endpoint reports `ok android=ok windows=ok`; manifests now serve Windows 1.6.2 / 10602 and Android 1.3.2 / 11.
 - AI feed backups: Android `manifest.json.pre-nx-colors-1.3.2-20261027-1625`; Windows `windows-manifest.json.bak-20261027-162723`. Prior immutable artifacts remain present.
 - On AI, the feed service listens on loopback port 17768; `/healthz` is `ok android=ok windows=ok`. Before publication, immutable targets `nightdesk-11.apk` and `windows/nightdesk-windows-1.6.2.zip` were both verified absent; prior manifests were Android 1.3.1/code 10 and Windows 1.6.1/code 10601.
@@ -214,4 +214,4 @@ Release note policy: this is a maintenance re-release of the current feature set
 
 ## Next Step
 
-- Finish synchronized recovery docs, re-check release manifest/hash facts and Git diff, then commit the source/version/docs and push `main` to `origin`.
+- Completed and pushed as `f4c95c5` (`fix: correct NX remote color rendering`); worktree matches `origin/main`.
