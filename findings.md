@@ -2,14 +2,14 @@
 
 更新时间：2026-10-27（Asia/Seoul）
 
-## 当前发布事实（08:09 KST）
+## 当前发布事实（2026-10-27 10:10 KST）
 
-- 实现提交：`93147b357a9b8497cd2be4c67d3af99668279724`。
+- 最新 Android 实现提交：`89ed923dae29d555e2c511fe6556c2dd8b563a80`，已推送至 `origin/main`。
 - Windows 1.6.0 / 10600，ZIP 已在 AI 发布；当前生产桌面未被本轮替换。
 - 本地 Windows：`C:\dev\NightDesk\artifacts\win-x64-1.6.0`；NightDesk.exe 201922308 字节，SHA-256 `d5c1c09832ad80d638fe27af9e68c41b8ff4e4dd0b5dcb89faabc2559be72e5d`。
 - Windows ZIP：85183345 字节，SHA-256 `de162ec69f0f9c9d2e855fc7a084b1c316b4d78284be5b131fd393ec461004cb`。
 - nx-host.exe 0.2.0 未改变，7938048 字节，SHA-256 `17b420ce531270e28bef58d42dd68f5c13cac6c5fe4cbfd4fdbb20051ad35e3`。
-- Android 1.2.0 / 8，55058900 字节，SHA-256 `82136d2992ff30c3bf84a5d45a02bc04bda4d38203880193883abb747100c52f`，AI 不可变文件 nightdesk-8.apk。
+- Android 1.3.0 / 9，55075280 字节，SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42`，AI 不可变文件 nightdesk-9.apk。
 - Android 发布证书保持 `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`。
 
 ## Android 远控手势调查（2026-10-27）

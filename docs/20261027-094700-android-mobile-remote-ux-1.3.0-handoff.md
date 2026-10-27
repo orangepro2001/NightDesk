@@ -76,7 +76,7 @@ NIGHTDESK_UPDATE_ORIGIN=https://tony-ai-pc-1.tail9f7f1f.ts.net \
 
 发布密钥在 `/home/tony/.local/share/nightdesk-signing/`，必须保留同一证书。口令不得进入日志、源码、文档或聊天。只使用已拥有的 `nightdesk-build` 与 `nightdesk-emulator`；禁止读写不相关的 tmux `main` 会话。
 
-不要覆盖同版本 APK。后续发布必须递增 versionCode，并保持签名证书不变。当前清单恢复备份为 code 8：在 `/home/tony/dev/nightdesk-update-feed` 先备份当前 `manifest.json`，再复制 `manifest.json.pre-1.3.0-20261027-0945` 到临时文件并原子 `mv` 回 `manifest.json`；检查 `healthz` 和更新清单。不要删除 `nightdesk-9.apk`。
+不要覆盖同版本 APK。后续发布必须递增 versionCode，并保持签名证书不变。当前线上清单为 code 9（已在 AI 主机复核）；`manifest.json.pre-1.3.0-20261027-0945` 是发布前 code 8 备份，不要在正常状态下恢复它。只有明确需要回滚时，先备份当前 `manifest.json`，将该备份写入临时文件后原子 `mv` 回 `manifest.json`，再检查 `healthz` 和更新清单。不要删除 `nightdesk-9.apk`。
 
 ## 仍需真机验收
 

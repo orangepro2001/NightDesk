@@ -2,8 +2,8 @@
 
 更新时间：2026-10-27（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前代码基线：`93147b357a9b8497cd2be4c67d3af99668279724`（Windows 1.6.0 / Android 1.2.0）
-最新阶段交接：`docs\20261027-080919-paginated-ui-desktop-update-1.6.0-handoff.md`
+当前代码基线：`89ed923dae29d555e2c511fe6556c2dd8b563a80`（Windows 1.6.0 / Android 1.3.0）
+最新阶段交接：`docs\20261027-094700-android-mobile-remote-ux-1.3.0-handoff.md`
 
 ## 1. 当前交付状态
 
@@ -21,14 +21,15 @@
 - 控制窗口代码：`NxViewerProtocol.cs`、`NxViewerSession.cs`、`NxViewerWindow.cs`；本地 Viewer 状态在 `%LOCALAPPDATA%\NightDesk\nx-viewer`。
 - 远程控制新增 go-nx 低带宽数据面：Windows 启动受监控的 `nx-host.exe` sidecar，生成含证书指纹和短期配对码的二维码；Android 原生查看器可扫码、固定证书并绘制 tile。阶段 5 已完成连接状态机、超时/重试/重新配对、后台释放输入和旧回调隔离；构建、单测、仪器测试和模拟器冒烟通过。阶段 7 新增 `nx-probe` 安全端到端验收：用与 Android 相同的 pinned TLS / 配对 / QUIC / tile 解码路径，在 1920×1080 合成动态源上验证 4 帧、538 个 tile 更新和 7/7 输入回执，不抓屏、不调用 SendInput。**真实 GDI 抓屏、SendInput 与真机 tailnet 仍未验收**。详见 `docs/20261027-041844-remote-control-stage-7-safe-e2e-probe-handoff.md`。
 
-### Android 1.2.0 已发布版本（versionCode 8）
+### Android 1.3.0 已发布版本（versionCode 9）
 
-- AI 不可变文件 nightdesk-8.apk；本地产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.2.0.apk`。
-- 大小 55058900 字节；SHA-256 `82136d2992ff30c3bf84a5d45a02bc04bda4d38203880193883abb747100c52f`。
+- AI 不可变文件 `nightdesk-9.apk`；本地产物 `C:\dev\NightDesk\artifacts\android\nightdesk-1.3.0.apk`。
+- 大小 55075280 字节；SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42`。
 - 发布证书保持 `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`。
-- 首页 / 显示 / 远控 / 更新四页底部导航、系统栏 inset、旋转后恢复选中页、独立更新状态、无主机更新检查。
-- 27 JVM tests：CoreTest 10 + NxConnectionTest 10 + NxTest 7；lint 0 errors / 22 warnings。
-- 5 instrumented tests：HostStore 3 + MainUi 1 + UpdateFlow 1；发布后 UpdateFlow 再跑 OK (1 test)。
+- 在 1.2.0 的四分页和安全连接流程上，远控手势调整为轻点单击、单指滑动移动光标、长按后拖动、双指滚动；增加常驻“释放”按钮、取消/失焦/退后台释放和系统栏安全区。
+- 36 JVM tests：CoreTest 10 + NxConnectionTest 10 + NxTest 7 + RemoteGestureTest 9；lint 0 errors / 23 warnings。
+- 6 instrumented tests：HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1；发布后模拟器从 code 8 更新到 code 9 的长度、SHA-256、签名和安装验证通过。
+- 1.2.0 / code 8 及更早版本仍作为历史 APK 保留。真实 Android 手机连接 Windows 后的 GDI / SendInput 仍需独立测试机验收。
 - 1.1.0、1.0.4 产物与历史清单保留；Android 不会接受自动降级。
 - 物理真机、真实 GDI/SendInput、双机 tailnet UDP/QUIC 仍未验收。
 
@@ -50,7 +51,7 @@
 - Windows manifest：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/api/v1/windows-update`
 - 最新 APK：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk`
 - 更新清单：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update`
-- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=8`
+- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=9`
 - 桌面控制：`https://minipc-xoh4t.tail9f7f1f.ts.net/`
 
 未启用 Funnel；访问边界由 tailnet ACL 控制。
@@ -229,31 +230,27 @@ $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 ### Android / AI
 
 - Windows 不安装 Android SDK、Gradle、adb、模拟器。
-- 源码：`AI:/home/tony/dev/nightdesk-android`；阶段 5 验证目录：`AI:/home/tony/dev/nightdesk-android-stage5`。
+- 最新 Android 源码与构建目录：`AI:/home/tony/dev/nightdesk-android-1.3.0`；旧 `stage5` 目录仅为历史验证快照，不用于本阶段恢复。
 - 构建/测试只在 tmux 会话 `nightdesk-build`、`nightdesk-emulator`。
 - **`main` tmux 会话属于其它工作，禁止读写。**
 - 非交互 SSH 的 PATH 可能没有 adb；使用 `/home/tony/Android/Sdk/platform-tools/adb`。
 - 本机无 `/dev/kvm`，AVD 为软件渲染。
 
 ```bash
-# 阶段 5 release APK（使用同步目录）
-NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-stage5 \
-bash /home/tony/dev/nightdesk-android-stage5/scripts/build-ai.sh \
-  -q -PnightdeskVersionCode=8 -PnightdeskVersionName=1.2.0
+# Android 1.3.0 release APK（使用隔离的本阶段源码目录）
+NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-1.3.0 \
+bash /home/tony/dev/nightdesk-android-1.3.0/scripts/build-ai.sh \
+  -q -PnightdeskVersionCode=9 -PnightdeskVersionName=1.3.0
 
-# AndroidTest APK（需要构建脚本导出的签名环境变量）
-gradle --no-daemon assembleReleaseAndroidTest -q \
-  -PnightdeskVersionCode=8 -PnightdeskVersionName=1.2.0
+# AndroidTest APK
+NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-1.3.0 \
+bash /home/tony/dev/nightdesk-android-1.3.0/scripts/build-androidtest.sh -q \
+  -PnightdeskVersionCode=9 -PnightdeskVersionName=1.3.0
 
-# 在已启动的 emulator-5580 上运行多主机仪器测试
-adb -s emulator-5580 shell am instrument -w \
-  -e class dev.nightdesk.android.HostStoreInstrumentedTest \
-  dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner
-
-# 完整仪器测试（含独立更新源下载校验，必须传入 updateOrigin）
-adb -s emulator-5580 shell am instrument -w \
-  -e updateOrigin https://tony-ai-pc-1.tail9f7f1f.ts.net \
-  dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner
+## 完整仪器测试（含远控 UI 和独立更新源下载校验）
+NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-1.3.0 \
+NIGHTDESK_UPDATE_ORIGIN=https://tony-ai-pc-1.tail9f7f1f.ts.net \
+  bash /home/tony/dev/nightdesk-android-1.3.0/scripts/run-instrumented.sh
 ```
 
 ### 签名
@@ -265,9 +262,9 @@ adb -s emulator-5580 shell am instrument -w \
 
 ## 11. Android 后续开发计划
 
-1.2.0 已发布，四分页、系统栏布局和更新页完成；真实端到端验收仍未完成。后续建议：
+1.3.0 已发布，四分页、系统栏布局、更新页和基础远控手势已完成；真实端到端验收仍未完成。后续建议：
 
-1. **1.2.0 真机验收**：在独立 Windows 测试机验证 GDI 抓屏、SendInput、tile 画面、失焦释放、防火墙和 tailnet。
+1. **1.3.0 真机验收**：在独立 Windows 测试机验证点按、移动、长按拖拽、双指滚动和强制释放，并检查真实 GDI / SendInput、DPI、断网、后台和 tailnet。
 2. **RemoteActivity 仪器冒烟**：自动断言不可达地址会进入可重试状态；保持当前“后台即断开”的安全策略。
 3. **NX 输入**：剪贴板、完整软键盘/物理键盘、组合键和受保护应用边界。
 4. **主机体验**：自定义备注、在线/离线徽标、最近成功时间、排序和导入/导出。
@@ -291,7 +288,7 @@ adb -s emulator-5580 shell am instrument -w \
 ## 13. 当前交付边界
 
 - Windows 1.6.0 已发布，210 项测试、布局、HTTPS 下载与隔离安装 helper 验证通过；Desktop 旧进程仍在运行，部署须先正常退出并确认显示恢复，再同时替换两个 EXE。
-- Android 1.2.0（versionCode 8）已发布到 AI 更新源，下载/哈希/签名和模拟器更新流程已验证；真实 GDI、SendInput、DPI/UAC、Android 真机和 tailnet UDP/QUIC 仍需人工验收。
+- Android 1.3.0（versionCode 9）已发布到 AI 更新源，下载/哈希/签名和模拟器更新流程已验证；真实 GDI、SendInput、DPI/UAC、Android 真机和 tailnet UDP/QUIC 仍需人工验收。
 - VDD 随包自动安装已实现；真正缺驱动环境的端到端安装未在本机执行。
 - 应用不提供任意 shell 或文件访问接口；go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不等同于通用桌面控制。
 - 不启用 Tailscale Funnel；远程访问只允许 tailnet。

@@ -2,24 +2,24 @@
 
 更新日期：2026-10-27（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：分页 UI、文字重叠修复、Windows 自动下载更新、AI 双平台分发；保留原显示/远控人工验收清单。
+本轮范围：Android 远控手势与按键释放体验（1.3.0）；此前分页 UI、Windows 自动下载更新及 AI 双平台分发状态保留。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
-| 实现提交 | `93147b357a9b8497cd2be4c67d3af99668279724` |
+| 最新实现提交 | `89ed923dae29d555e2c511fe6556c2dd8b563a80` |
 | Windows | 1.6.0 / 10600，AI ZIP 已发布；生产桌面未替换 |
 | Windows ZIP | 85183345 字节，SHA-256 `de162ec69f0f9c9d2e855fc7a084b1c316b4d78284be5b131fd393ec461004cb` |
 | Windows EXE | 201922308 字节，SHA-256 `d5c1c09832ad80d638fe27af9e68c41b8ff4e4dd0b5dcb89faabc2559be72e5d` |
 | nx-host | 0.2.0，7938048 字节，SHA-256 `17b420ce531270e28bef58d42dd68f5c13cac6c5fe4cbfd4fdbb20051ad35e3` |
-| Android | 1.2.0 / 8，55058900 字节，SHA-256 `82136d2992ff30c3bf84a5d45a02bc04bda4d38203880193883abb747100c52f` |
+| Android | 1.3.0 / 9，55075280 字节，SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42` |
 | Android 证书 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
 | 服务 | active / enabled；healthz = ok android=ok windows=ok |
 
 [双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk) · [Windows ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip) · [Android APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 
-完整恢复说明见 `C:\dev\NightDesk\docs\20261027-080919-paginated-ui-desktop-update-1.6.0-handoff.md`。
+完整恢复说明见 `C:\dev\NightDesk\docs\20261027-094700-android-mobile-remote-ux-1.3.0-handoff.md`。
 
 ## 2. 自动化结果（本轮已复核）
 
@@ -30,10 +30,11 @@
 | 更新下载 | 真实 HTTPS -> manifest -> 85MB ZIP -> 双 EXE 哈希/解包通过 | 临时缓存，不安装生产程序 |
 | 安装 helper | 等待测试进程、替换双合成文件、保留备份、重启合成 WinExe 通过 | 临时目录，不是真实升级 |
 | Feed | 5 Python tests 通过 | Android 兼容、Windows 路由、前缀代理、双平台页面 |
-| Android JVM | 27 项通过 | CoreTest 10 + NxConnectionTest 10 + NxTest 7 |
-| Android lint/build | 0 errors / 22 warnings；release/debug/AndroidTest 构建通过 | AI 主机 |
-| Android 仪器 | OK (5 tests) | HostStore 3 + MainUi 1 + UpdateFlow 1 |
-| 线上清单/HEAD | Windows 1.6.0 / Android 1.2.0；HTTP 200，长度/哈希一致 | 更新源发布，不代表远控验收 |
+| Android JVM | 36 项通过 | CoreTest 10 + NxConnectionTest 10 + NxTest 7 + RemoteGestureTest 9 |
+| Android lint/build | 0 errors / 23 warnings；release/debug/AndroidTest 构建通过 | AI 主机 |
+| Android 仪器 | OK (6 tests) | HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1 |
+| Android 手势 | 点按/移动/长按拖动/双指滚动/取消/强制释放覆盖通过 | 模拟器与 JVM；非真实 Windows 输入验收 |
+| 线上清单/HEAD | Windows 1.6.0 / Android 1.3.0；HTTP 200，长度/哈希一致 | 更新源发布，不代表真实远控验收 |
 | VDD 载荷 | 原有大小/签名/提取/篡改拒绝断言通过 | 不执行真实驱动安装 |
 
 Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名。生产升级、真实 GDI/SendInput、DPI/UAC、物理 Android 和双机 tailnet 仍待人工验收。
@@ -52,6 +53,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - Android `NxConnectionModel` 提供显式连接阶段（Connecting / Streaming / Failed / Disconnected / Background）、20 秒前端截止时间、失败分类与唯一恢复动作。
 - 失败处理：`bad-code` / `untrusted` 引导重新配对；`host-identity` 要求重新扫码；其余网络错误可重试；**绝不自动重连**。
 - 生命周期：切后台、Activity 销毁、断线时释放鼠标按键、滚轮、键盘修饰键和 QUIC 会话；旧 attempt 的 `streaming` / `error` / `closed` / frame / input 回执不会覆盖新会话。
+- Android 1.3.0：轻点抬手后发送一次左键点击；普通单指滑动仅移动鼠标；长按后才开始拖动；双指滚动；拖动抬手落在黑边仍释放；取消、失焦、后台及“释放”按钮执行全量释放。自动化手势测试通过，但真实 Windows SendInput 仍未验收。
 
 ### 3.2 自动化覆盖
 
@@ -69,6 +71,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - [ ] 真实 `SendInput`：鼠标移动/点击、滚轮、Unicode、组合键、修饰键释放。
 - [ ] Android 真机通过 tailnet 扫码连接，验证证书固定、错误配对码、二维码过期、另一台设备接管。
 - [ ] 断网、切后台、强制停止、Windows sidecar 崩溃后的恢复行为。
+- [ ] Android 真机验证轻点仅点击、单指滑动不产生框选、长按拖动及抬手释放；用“释放”按钮和系统手势取消确认没有残留按键。
 - [ ] DPI 缩放、锁屏、显示器休眠、虚拟屏下的抓屏结果。
 - [ ] 记录首帧时间、稳态带宽、CPU、内存、输入回执延迟。
 
@@ -203,7 +206,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - [x] 真实 Tailscale HTTPS 下载页、manifest、latest.apk 均返回 200，版本与哈希一致。
 - [x] 未启用 Funnel，其它 Serve 路由未被删除。
 - [ ] 重启 AI 后确认服务自动恢复、URL 仍可用。
-- [x] 1.2.0 发布时确认 APK 先落盘、版本别名次之、manifest 最后原子切换；服务仅在大小与 SHA-256 匹配时提供下载。
+- [x] 1.3.0 发布时确认 APK 先落盘、版本别名次之、manifest 最后原子切换；服务仅在大小与 SHA-256 匹配时提供下载。旧版 1.2.0 / code 8 APK 保留。
 
 ### G. NX 远程控制端到端（需独立测试机与真机）
 
@@ -234,8 +237,8 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 
 ## 9. 交付边界
 
-- Android 1.2.0（versionCode 8）已实现多主机、扫码绑定、永久设备令牌、独立更新源和 go-nx 低带宽远控，并完成远端构建、27 项 JVM 单测、5 项仪器测试及线上更新源下载验证；物理真机联调仍需人工验收。
-- Android 1.2.0 已发布到 AI 更新源，下载/哈希/签名和模拟器更新流程已通过；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机和 tailnet UDP/QUIC **未验收**。
+- Android 1.3.0（versionCode 9）已在 1.2.0 多主机、扫码绑定、永久设备令牌、独立更新源和 go-nx 远控基础上，加入不误触框选的点按/移动/长按拖动手势、双指滚动和常驻全量释放操作；36 项 JVM、6 项仪器测试、构建、签名与线上更新验证通过。
+- Android 1.3.0 已发布到 AI 更新源，APK 大小、SHA-256、签名及模拟器从 1.2.0 更新的流程已验证；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机手势和 tailnet UDP/QUIC **未验收**。
 - Windows 1.6.0 已发布、210 项测试通过，并通过真实 `nx-host.exe -test-mode` 与 WPF 控制窗口渲染冒烟。`Desktop\NightDesk.exe` 仍运行现有版本，本轮未替换；部署时必须把新版 `NightDesk.exe` 与 `nx-host.exe` 一起复制到同一目录。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
 - go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不是通用远程桌面，不等同于 Sunshine/Parsec 视频串流。

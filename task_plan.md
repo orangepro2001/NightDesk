@@ -124,7 +124,7 @@ Goal: prevent accidental desktop drag-selection, guarantee mouse/key release, an
 2. [done] Implement a deterministic Android touch state machine: tap clicks only on release, movement never holds left, long press starts drag, pointer cancellation releases all.
 3. [done] Add a persistent release-all control, update gesture instructions and expose active drag state.
 4. [done] Run Android JVM, lint, release, instrumented and emulator checks on AI; preserve signing identity and verify published download.
-5. [in progress] Write timestamped recovery/validation notes, update project handoff records, then commit and push the completed stage.
+5. [done] Write timestamped recovery/validation notes, update project handoff records, then commit and push the completed stage.
 
 Success criteria: a normal tap generates one balanced click; finger movement cannot select text or icons unless the user intentionally long-presses; all cancellation/focus/background/close paths release input; explicit release remains visible during remote control.
 
@@ -137,5 +137,6 @@ Success criteria: a normal tap generates one balanced click; finger movement can
 - AI build used an isolated copy under `/home/tony/dev/nightdesk-android-1.3.0`; the prior stage5 directory and unrelated `main` tmux session remain untouched. A stale stage5 source snapshot was replaced by the complete current Android source before final verification.
 - Final Android checks: 36 JVM tests; lint 0 errors / 23 warnings; release/debug/AndroidTest build passed; 6 full instrumented tests passed, including release-control UI; a post-publish 1.2.0 -> 1.3.0 emulator update/download/hash/signature test passed.
 - Android 1.3.0 / code 9 published to AI feed; immutable APK SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42`, size 55,075,280; signing certificate unchanged.
+- Android implementation and timestamped handoff pushed to `origin/main` as `89ed923dae29d555e2c511fe6556c2dd8b563a80`; current `docs/HANDOFF.md` and `docs/ACCEPTANCE.md` now point to that release and are being committed as the documentation follow-up.
 - Errors and resolutions: test file initially landed in the copied main source folder (moved to test); UI test initially waited from the Android main thread (moved wait outside callback); stale Android snapshot lacked matching source/old tests (synchronized all current `android/app/src` and rebuilt).
-- Remaining next step: update `docs/HANDOFF.md` and `docs/ACCEPTANCE.md` to point to the new timestamped handoff, then commit and push this tested release stage.
+- Remaining manual acceptance: use an Android phone and isolated Windows test host to verify real GDI/SendInput, the touch gestures, DPI, cancellation and recovery; do not perform this on the production desktop.
