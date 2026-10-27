@@ -1,7 +1,7 @@
 # NightDesk progress
 
 更新时间：2026-10-27 10:10 KST（Asia/Seoul）
-最新恢复入口：docs/20261027-094700-android-mobile-remote-ux-1.3.0-handoff.md
+最新恢复入口：docs/20261027-134609-android-mouse-release-coordinate-1.3.1-handoff.md
 
 ## Android 移动远控体验（2026-10-27）
 
@@ -59,3 +59,16 @@
 - 服务目录：/home/tony/dev/nightdesk-update-feed。
 - 备份：server.py.bak-20261027-080511、manifest.json.pre-1.3.0-20261027-0945；旧 code 8 APK 保留。
 - 不删除旧 APK/ZIP，不重建覆盖同一已发布版本；修复提高版本号。
+
+## Android 鼠标释放坐标复位修复（2026-10-27）
+
+- 起点：仓库 `main` 干净，HEAD=`81f950e`。用户报告移动后光标可见，但松开鼠标后跳至左上角。
+- 根因：Android Go `Session` 仅给 `Move` 消息带 host 坐标；MouseDown/MouseUp/Wheel/ReleaseAll MouseUp 均使用零值坐标。Windows injector 对每个鼠标事件执行消息坐标定位，造成复位。
+- Red：在 AI `nightdesk-cursor-fix/native` 执行新增的移动 QUIC 集成测试，MouseUp 和 ReleaseAll 实际坐标为 `(0,0)`，按预期失败。
+- Green：`Session` 在共享输入锁下记录最近成功鼠标位置，按钮、滚轮、释放消息复用它。`go test ./...`、`go test -race ./mobile`、`go vet ./...`、Windows amd64 cross-vet/build 通过。
+- AAR 在 AI 以 arm/arm64/386/amd64 重新 gomobile bind；提交 AAR SHA-256 `bfa20670742caace05c940fd68fc790b3bf49b6a431d8f2268712936d08f22ad`。
+- Android AI 构建目录 `/home/tony/dev/nightdesk-android-1.3.0`；36 JVM tests、lint、release/debug/AndroidTest build 和 6 项 instrumented tests 通过。
+- 线上发布 Android 1.3.1/code 10，55,076,236 字节，SHA-256 `11496d15cd997cff45e37637a828548a41c396fdfeb403d948839424eb3f0311`；保留 code 9 与发布前清单备份。
+- 模拟器先安装 code 9，UpdateFlow 从线上下载候选并校验长度/hash，然后安装实际 HTTPS 下载的 APK，最终报告 code 10。Feed health=`ok android=ok windows=ok`。
+- 实现提交 `4a9930bbadb9b58a873307088914881636b71ac3` 已推送。新增详细 handoff，README、HANDOFF、ACCEPTANCE 与恢复进度已同步，随文档提交推送。
+- 真正 Windows SendInput/Android 真机远控仍未验收；没有对生产桌面执行输入、GDI 或显示器操作。

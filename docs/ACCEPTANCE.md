@@ -2,24 +2,24 @@
 
 更新日期：2026-10-27（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：复核移动端远控光标不可见问题并修复 Windows GDI 捕获端；Windows 1.6.1 已发布。Android 手势与释放体验维持 1.3.0。
+本轮范围：确认并修复 Android 鼠标释放/滚轮消息缺少坐标造成的指针复位；Android 1.3.1 已构建、发布并在模拟器验证升级。Windows 1.6.1 不变。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
-| 最新实现提交 | `ba61db096fc631d02e0399559c8b909b6d519706` |
+| 最新实现提交 | `4a9930bbadb9b58a873307088914881636b71ac3` |
 | Windows | 1.6.1 / 10601，AI ZIP 已发布；生产桌面未替换 |
 | Windows ZIP | 85184039 字节，SHA-256 `ae3de5075dca53b13d55d36409520c08f89fa405bb3d5fbcf1f67e624e64b7ae` |
 | Windows EXE | 201922308 字节，SHA-256 `962dbc32ec341661e6292c68c1331803f8b4475a896d834661ca70e9410fb74a` |
 | nx-host | 0.2.1，7940608 字节，SHA-256 `88233ba806d9a7ebe4bda5c66a2e4c61e0d9dc9b43c48787170ca68e6087b9f0` |
-| Android | 1.3.0 / 9，55075280 字节，SHA-256 `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42` |
+| Android | 1.3.1 / 10，55076236 字节，SHA-256 `11496d15cd997cff45e37637a828548a41c396fdfeb403d948839424eb3f0311` |
 | Android 证书 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
 | 服务 | active / enabled；healthz = ok android=ok windows=ok |
 
 [双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk) · [Windows ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip) · [Android APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 
-完整恢复说明见 `C:\dev\NightDesk\docs\20261027-123458-windows-cursor-capture-1.6.1-handoff.md`。
+完整恢复说明见 `C:\dev\NightDesk\docs\20261027-134609-android-mouse-release-coordinate-1.3.1-handoff.md`。
 
 ## 2. 自动化结果（本轮已复核）
 
@@ -34,7 +34,10 @@
 | Android lint/build | 0 errors / 23 warnings；release/debug/AndroidTest 构建通过 | AI 主机 |
 | Android 仪器 | OK (6 tests) | HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1 |
 | Android 手势 | 点按/移动/长按拖动/双指滚动/取消/强制释放覆盖通过 | 模拟器与 JVM；非真实 Windows 输入验收 |
-| 线上清单/HEAD | Windows 1.6.1 / Android 1.3.0；HTTP 200，长度/哈希一致 | 更新源发布，不代表真实远控验收 |
+| Go 鼠标坐标回归 | MouseDown/MouseUp/Wheel/ReleaseAll 保留最后鼠标坐标；旧实现的回归测试先失败、修复后通过 | 远程集成测试使用假注入器，不调用真实 SendInput |
+| Android Go AAR | 已从修复后的 gomobile 核心重建，SHA-256 `bfa20670742caace05c940fd68fc790b3bf49b6a431d8f2268712936d08f22ad` | AI 主机交叉构建 |
+| Android 更新 | 模拟器从 code 9 经 HTTPS 下载、哈希校验并安装 code 10；6 项仪器测试通过 | 非物理手机远控验收 |
+| 线上清单/HEAD | Windows 1.6.1 / Android 1.3.1；HTTP 200，长度/哈希一致 | 更新源发布，不代表真实远控验收 |
 | VDD 载荷 | 原有大小/签名/提取/篡改拒绝断言通过 | 不执行真实驱动安装 |
 
 Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名。生产升级、真实 GDI/SendInput、DPI/UAC、物理 Android 和双机 tailnet 仍待人工验收。
@@ -45,8 +48,16 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - 找到并修复可见反馈断点：Windows GDI `BitBlt` 不采集系统鼠标指针，而 Android 只显示接收的帧。现在 host 通过 `GetCursorInfo` / `GetIconInfo` / `DrawIconEx` 在发送前合成指针，再由现有 tile-diff/QUIC 送到 Android 和 Windows viewer。
 - Go geometry 单测覆盖 primary/secondary/negative monitor origin 与 hotspot。AI 上 Go tests/vet 和 Windows/amd64 cross-build 通过；Windows 210 项测试通过；test-mode 合成协议探针 4 帧、538 tiles、7/7 receipts 通过。
 - Windows 1.6.1 updater 已从真实 HTTPS feed 下载 ZIP、检查清单大小/SHA-256、解包并 staging 两个 EXE；**仅 staging，没有安装或重启**。线上 Windows manifest 为 1.6.1/10601，ZIP HEAD 200、长度匹配。
-- Android 不需要升级；APK 保持 1.3.0/code 9。Android 仪器套件 6 项本次复跑通过。
+- Windows 1.6.1 发布当时 Android APK 为 1.3.0/code 9，仪器套件 6 项复跑通过；后续 mouse-up 坐标问题及 1.3.1 更新见下节 2.2。
 - 真实 Windows cursor 像素 / 物理 SendInput / Android 真机及 DPI/UAC 仍需独立 Windows 测试机与 Android 真机。合成 `-inject log` 只证明协议操作回执，不是操作系统输入验收。
+
+### 2.2 鼠标松开后跳回左上角（Android 1.3.1）
+
+- **确认根因：**Android `Session.Move` 会发送目标坐标，但按钮按下/抬起、滚轮及 `ReleaseAll` 的鼠标抬起事件以前未携带坐标，协议默认值为 `(0,0)`。Windows `Injector.mouse` 对这些鼠标事件使用消息里的绝对坐标，所以松开/滚动会先把光标放回屏幕原点。
+- `native/mobile/session.go` 现在缓存最后成功发送的鼠标位置；通过同一 `inputMu` 串行化移动、按钮、滚轮、释放消息，后续鼠标操作全部复用该坐标。移动消息失败不会替换缓存位置。
+- Red/Green：新回归断言在修复前实际收到 `(0,0)` 并失败；修复后普通 MouseDown/MouseUp/Wheel 和 `ReleaseAll` MouseUp 均验证目标坐标未变。`go test ./...`、`go test -race ./mobile`、`go vet ./...`、Windows amd64 cross-vet 通过。
+- Android AAR 已重建；36 JVM tests、lint、Release/Debug/AndroidTest build 和 6 项模拟器仪器测试通过。线上 APK `1.3.1 / code 10` 实际下载 SHA-256 匹配，模拟器从 code 9 更新安装到 code 10。
+- 这验证了 Android→QUIC 的鼠标坐标消息，不等于系统鼠标输入的真机验收。尚待 Android 真机配对隔离 Windows 测试机验证真实抬手/滚轮/失焦、DPI、屏幕边缘和不同显示器；没有在生产桌面调用真实 `SendInput`。
 
 
 ## 3. go-nx 远程控制（阶段 1-7）

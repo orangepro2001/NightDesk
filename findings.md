@@ -114,6 +114,15 @@
 - Stage 5 verification: 26 JVM tests, 4 instrumented tests, lint `0 errors / 22 warnings`, emulator screenshots.
 - Real Android physical-device/tailnet/GDI/SendInput acceptance is still outstanding.
 
+## Mouse release cursor reset (2026-10-27)
+
+- Confirmed protocol root cause in `native/mobile/session.go`: `Move` carried coordinates, while `MouseDown`, `MouseUp`, `Wheel`, and `ReleaseAll` mouse-up messages left `X/Y` at zero.
+- Confirmed Windows `native/internal/inject/inject_windows.go` positions the cursor from mouse-event coordinates before applying button/wheel actions, so an Android release message reset the pointer to `(0,0)`.
+- Integration Red test through the QUIC host and fake injector reported `(0,0)` for both ordinary `MouseUp` and `ReleaseAll`; this was not inferred from a source-only unit test.
+- Fix stores the last successfully sent coordinates and serializes position changes, button/wheel events, and release-all under `inputMu`. Tests cover button down/up, wheel, and release-all at nonzero coordinates.
+- Go tests/race/vet and Windows cross-vet/build passed on AI. A fresh gomobile AAR was included in Android 1.3.1/code 10; full Android build, 36 JVM tests, six instrumentation tests, and code9→code10 emulator update/install passed.
+- Limit: the fake injector proves the coordinates delivered over QUIC, not actual Windows `SendInput`; real acceptance needs an isolated Windows host and Android phone.
+
 ## AI Android toolchain / feed
 
 - Android SDK/JDK/Gradle/adb/emulator operations run only on SSH host `AI`; Windows does not install the Android toolchain.

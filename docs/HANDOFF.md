@@ -2,8 +2,8 @@
 
 更新时间：2026-10-27（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前实现：Windows 1.6.1 / nx-host 0.2.1 / Android 1.3.0；提交 `ba61db096fc631d02e0399559c8b909b6d519706`
-最新阶段交接：`docs\20261027-123458-windows-cursor-capture-1.6.1-handoff.md`
+当前实现：Windows 1.6.1 / nx-host 0.2.1 / Android 1.3.1；Go/Android 实现提交 `4a9930bbadb9b58a873307088914881636b71ac3`
+最新阶段交接：`docs\20261027-134609-android-mouse-release-coordinate-1.3.1-handoff.md`
 
 ## 1. 当前交付状态
 
@@ -27,8 +27,19 @@
 - 根因：Android touch → `Session.move` → `KindMouseMove` → Windows `SendInput` 已有路径；但 Windows GDI `BitBlt` 捕获不包含系统 cursor，Android 只画接收到的帧 tiles，用户因此看不到远端指针。
 - `Screen.Grab` 现在通过 `GetCursorInfo` / `GetIconInfo` / `DrawIconEx` 把 host cursor 合成进抓屏帧。合成发生在 tile diff 之前，远端指针位置更新将随相关 tile 到达手机和 Windows viewer。协议及 APK 均无需修改。
 - Go 单测/vet 与 Windows amd64 交叉构建通过；合成 log-only QUIC 探针通过，210 项 Windows suite 通过；AI 更新清单与 HTTPS HEAD 已复核。
-- Android 仍是 1.3.0 / code 9，不需要为此修复重发 APK。
+- Windows 1.6.1 发布当时 Android 为 1.3.0 / code 9，因此该 Windows 捕获修复本身不要求重发 APK；之后确认的鼠标释放坐标问题已由 Android 1.3.1 修复，见下一节。
 - **仍未通过真实设备验收**：物理 Windows `SendInput`、实时 GDI 指针像素、Android 真机/双机 tailnet、不同 DPI/UAC。未修改生产桌面进程或显示器状态。
+
+### Android 1.3.1 鼠标释放坐标修复（versionCode 10）
+
+- 修复松开鼠标按钮、全量释放或滚轮输入后指针跳回左上角的问题。Go session 现在保存最近一次成功发送的鼠标位置，并在共享输入锁下将其附带到 MouseDown、MouseUp、Wheel 和 ReleaseAll 的 MouseUp 消息。
+- 根因是这些消息原先仅携带按钮/滚轮参数，坐标默认为 `(0,0)`；Windows 注入端会按鼠标消息坐标定位，再执行对应动作。
+- 回归测试先验证旧行为确实复位到 `(0,0)`，修复后验证常规按下/抬起、滚轮与 `ReleaseAll` 均保留非零坐标。
+- AI Go：`go test ./...`、`go test -race ./mobile`、`go vet ./...`、Windows amd64 cross-vet 通过。gomobile AAR 已重建并用于 Android 构建。
+- Android：36 JVM tests、Release/Debug/AndroidTest build、lint 通过；6 项仪器测试通过。发布后在模拟器从 Android 1.3.0/code 9 通过线上更新源下载、哈希校验并升级至 1.3.1/code 10。
+- APK：55,076,236 字节，SHA-256 `11496d15cd997cff45e37637a828548a41c396fdfeb403d948839424eb3f0311`；AAR SHA-256 `bfa20670742caace05c940fd68fc790b3bf49b6a431d8f2268712936d08f22ad`。沿用原 Android 签名证书。
+- AI 更新源已发布 code 10；manifest、HTTPS HEAD、实际 APK 下载与本地/AI 哈希均验证通过，服务健康 `ok android=ok windows=ok`。
+- 真实 Windows 输入未在生产桌面执行；Android 真机 + 隔离 Windows host 的 `SendInput`、DPI 和屏幕边缘行为仍需现场验收。详细恢复命令见 `docs\20261027-134609-android-mouse-release-coordinate-1.3.1-handoff.md`。
 
 ### Android 1.3.0 已发布版本（versionCode 9）
 
@@ -60,7 +71,7 @@
 - Windows manifest：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/api/v1/windows-update`
 - 最新 APK：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk`
 - 更新清单：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update`
-- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=9`
+- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=10`
 - 桌面控制：`https://minipc-xoh4t.tail9f7f1f.ts.net/`
 
 未启用 Funnel；访问边界由 tailnet ACL 控制。

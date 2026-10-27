@@ -160,4 +160,30 @@ Success criteria: the captured remote frame includes the host cursor at the posi
 - Safe end-to-end probe: 4 synthetic 1920×1080 frames, 538 tile updates, 7/7 input receipts; strict test mode logs input and does not call GDI or SendInput.
 - Windows suite: 210 passed; no display state changed. Windows publish produced NightDesk 1.6.1 and nx-host 0.2.1; update manifest is 1.6.1 / 10601 and HTTPS package HEAD returns 200 with expected length.
 - Not tested: actual Windows `GetCursorInfo`/`DrawIconEx` pixels on a live desktop, physical `SendInput`, Android phone, DPI/UAC/security desktop, or tailnet two-device session. Existing production processes/displays were not restarted or modified.
-- Android APK remains 1.3.0 / code 9; it was not rebuilt because the fix is in the Windows capture source and uses the existing tile protocol.
+- At the Windows 1.6.1 capture-fix stage, Android APK was 1.3.0 / code 9 and was not rebuilt because that specific fix used the existing tile protocol. The later release state is recorded in the mouse-release investigation below.
+
+## Current bug investigation: mouse release resets cursor to origin
+
+Goal: keep the Android-controlled Windows cursor at the last touched position after clicks, drag release, wheel input, and release-all.
+
+1. [done] Add integration regression assertions for MouseDown/MouseUp/Wheel and ReleaseAll coordinates; run on AI before implementation and confirm `(0,0)` failures.
+2. [done] Track last successfully sent pointer position under the session input lock and attach it to all mouse button, wheel, and cleanup release messages.
+3. [done] Re-run Go full/race tests, vet, Windows cross-vet/build; regenerate gomobile AAR on AI.
+4. [done] Build Android 1.3.1/code 10 on AI; run JVM/lint/build/instrumented tests and emulator update/install verification.
+5. [done] Publish immutable code 10 APK, verify manifest/HTTPS/size/hash and preserve code 9 history.
+6. [done] Update timestamped recovery, handoff, README and acceptance documentation; commit and push docs.
+
+Success criteria: every mouse release/wheel message after a Move preserves its nonzero host coordinate, the cursor does not return to `(0,0)` due to a default protocol coordinate, and remaining physical SendInput caveats are explicit.
+
+### Verification
+
+- Red: mobile QUIC integration tests received `(0,0)` for MouseUp and ReleaseAll; both failed against the original implementation.
+- Green: all mouse button/wheel/release assertions pass; `go test ./...`, `go test -race ./mobile`, `go vet ./...`, Windows amd64 cross-vet/build passed on AI.
+- Android AAR SHA-256 `bfa20670742caace05c940fd68fc790b3bf49b6a431d8f2268712936d08f22ad`; 36 JVM tests and 6 instrumented tests passed.
+- Android 1.3.1/code 10 is live; APK size 55,076,236, SHA-256 `11496d15cd997cff45e37637a828548a41c396fdfeb403d948839424eb3f0311`; emulator updated from code 9 and reports code 10.
+- Implementation commit `4a9930bbadb9b58a873307088914881636b71ac3` pushed; timestamped handoff, README, HANDOFF, ACCEPTANCE and recovery notes synchronized for the documentation push.
+- No production Windows SendInput, capture, process restart or display topology operation was performed. Isolated Windows + Android real-device acceptance remains outstanding.
+
+## Next Step
+
+- The code and update-feed release are complete. When an isolated Windows test host and Android phone are available, execute the real-input acceptance checklist in `docs/20261027-134609-android-mouse-release-coordinate-1.3.1-handoff.md`.

@@ -5,7 +5,7 @@
 ## 当前版本（2026-10-27 KST）
 
 - Windows **1.6.1** / versionCode **10601**，sidecar **nx-host 0.2.1**；已修复远程画面不显示系统鼠标指针。
-- Android **1.3.0** / versionCode **9**；签名保持不变，本次光标修复不需要更新 APK。
+- Android **1.3.1** / versionCode **10**；修复鼠标按键释放、滚轮和全量释放后光标跳回左上角，签名保持不变。
 - 两份更新均已发布到 AI 服务。仅 tailnet 可达，未启用 Funnel。
 - Windows 210 项测试、独立布局验证、隔离安装验证通过；Go tests/vet、Windows amd64 交叉构建和 4 帧/538 tile/7 输入回执合成探针通过；Android 36 项 JVM 测试、6 项仪器测试通过，lint 0 errors / 23 warnings。
 - **这些结果不代表真实 GDI/SendInput、DPI/UAC、双机 UDP/QUIC 或物理真机验收通过。**
@@ -15,7 +15,7 @@
 - [双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk)
 - [Windows 1.6.1 ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip)
 - [Windows 更新清单](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/api/v1/windows-update)
-- [Android 1.3.0 APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
+- [Android 1.3.1 APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 - [Android 更新清单](https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update)
 
 旧 Windows 客户端没有新更新器，第一次进入 1.6.0 需手动部署 ZIP 中的 **NightDesk.exe 与 nx-host.exe 两个文件**。必须同目录；不能只换主程序。1.6.0 之后启动时和每 6 小时自动检查并下载更高版本，安装前由用户确认“安装并重启”。不静默安装、不强杀主程序。helper 保留 .bak-update，目标目录需要可写。已有 1.6.0 客户端可下载 1.6.1 光标修复更新。
