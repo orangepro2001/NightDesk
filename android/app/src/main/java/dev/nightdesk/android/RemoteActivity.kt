@@ -10,21 +10,19 @@ import android.os.Looper
 import android.os.SystemClock
 import android.text.InputType
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewConfiguration
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.LinearLayout
 import android.widget.PopupMenu
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowInsetsCompat
 import java.io.File
 import java.util.concurrent.Executors
@@ -33,9 +31,6 @@ class RemoteActivity : ComponentActivity() {
     private val io = Executors.newSingleThreadExecutor()
     private lateinit var store: NxProfileStore
     private lateinit var screen: RemoteScreenView
-    private lateinit var status: TextView
-    private lateinit var retryButton: Button
-    private lateinit var pairButton: Button
     private lateinit var touchControls: RemoteTouchControls
     private lateinit var host: NxHost
     private val connectionState = NxConnectionModel()
@@ -52,7 +47,9 @@ class RemoteActivity : ComponentActivity() {
     private var longPressTimeoutMillis = NxTouchGesture.DefaultLongPressMillis
     private var currentCode = ""
     private var pairingDialogShowing = false
+    private var textDialogShowing = false
     private var touchSequence = 0L
+    private val localKeys = mutableSetOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -94,13 +91,8 @@ class RemoteActivity : ComponentActivity() {
     private fun buildUi() {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         setContentView(root)
-        WindowCompat.getInsetsController(window, root).isAppearanceLightStatusBars = false
-        WindowCompat.getInsetsController(window, root).isAppearanceLightNavigationBars = false
-        ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
-            val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            insets
-        }
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        hideSystemBars(root)
 
         screen = RemoteScreenView(this)
         root.addView(screen, FrameLayout.LayoutParams(
@@ -109,40 +101,29 @@ class RemoteActivity : ComponentActivity() {
         ))
         screen.setOnTouchListener(::onRemoteTouch)
 
-        val top = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(6), dp(4), dp(6), dp(4))
-            setBackgroundColor(0xCC111817.toInt())
-        }
-        top.addView(overlayButton("返回") { finish() })
-        status = TextView(this).apply {
-            text = "正在准备加密连接…"
-            textSize = 13f
-            setTextColor(0xffd9eee9.toInt())
-            maxLines = 2
-            setPadding(dp(8), 0, dp(8), 0)
-        }
-        top.addView(status, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-        retryButton = overlayButton("重试") { retryConnection() }.apply { visibility = View.GONE }
-        pairButton = overlayButton("配对码") { showPairingCodeDialog() }.apply { visibility = View.GONE }
-        top.addView(retryButton)
-        top.addView(pairButton)
-        top.addView(overlayButton("按键") { showKeyMenu(it) })
-        top.addView(overlayButton("键盘") { showTextDialog() })
-        top.addView(overlayButton("右键") { rightClick() })
-        root.addView(top, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.TOP
-        ))
-
-        touchControls = RemoteTouchControls(this) { releaseAll() }
+        touchControls = RemoteTouchControls(this, ::onSessionControl)
         root.addView(touchControls, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM
+            dp(48),
+            dp(64),
+            Gravity.END or Gravity.CENTER_VERTICAL
         ))
+    }
+
+    private fun onSessionControl(action: RemoteControlAction, anchor: View) {
+        if (action != RemoteControlAction.Toggle) touchControls.collapseMenu()
+        when (action) {
+            RemoteControlAction.Toggle -> {
+                releaseAll()
+                touchControls.toggleMenu()
+            }
+            RemoteControlAction.Keyboard -> showTextDialog()
+            RemoteControlAction.SpecialKeys -> showKeyMenu(touchControls.menuButton)
+            RemoteControlAction.RightClick -> rightClick()
+            RemoteControlAction.ReleaseAll -> releaseAll()
+            RemoteControlAction.Retry -> retryConnection()
+            RemoteControlAction.PairAgain -> showPairingCodeDialog()
+            RemoteControlAction.Disconnect -> finish()
+        }
     }
 
     private fun connect(pairingCode: String) {
@@ -231,7 +212,7 @@ class RemoteActivity : ComponentActivity() {
         override fun onReceipt(opID: Long, result: Long) {
             if (!active(request)) return
             if (result != mobile.Mobile.ReceiptExecuted) {
-                ui(request) { status.text = "主机拒绝了输入操作" }
+                ui(request) { touchControls.setStatus("主机拒绝了输入操作") }
             }
         }
 
@@ -281,9 +262,9 @@ class RemoteActivity : ComponentActivity() {
     }
 
     private fun renderConnection() {
-        if (!::status.isInitialized) return
+        if (!::touchControls.isInitialized) return
         val snapshot = connectionState.snapshot()
-        status.text = when (snapshot.phase) {
+        touchControls.setStatus(when (snapshot.phase) {
             NxConnectionPhase.Connecting ->
                 if (snapshot.pairingCodeProvided) "正在使用短期配对码连接 ${host.addr}…"
                 else "正在连接 ${host.addr}…"
@@ -291,9 +272,9 @@ class RemoteActivity : ComponentActivity() {
             NxConnectionPhase.Disconnected -> "连接已断开，可点击“重试”"
             NxConnectionPhase.Background -> "已暂停：连接和按键已释放，返回后点击“重试”"
             NxConnectionPhase.Failed -> snapshot.failure?.let { friendlyError(it.code) } ?: "连接失败"
-        }
-        retryButton.visibility = if (snapshot.canRetry) View.VISIBLE else View.GONE
-        pairButton.visibility = if (snapshot.canPairAgain) View.VISIBLE else View.GONE
+        })
+        touchControls.setRetryVisible(snapshot.canRetry)
+        touchControls.setPairVisible(snapshot.canPairAgain)
     }
 
     private fun retryConnection() {
@@ -336,6 +317,8 @@ class RemoteActivity : ComponentActivity() {
     }
 
     private fun showTextDialog() {
+        if (textDialogShowing || isFinishing || destroyed) return
+        textDialogShowing = true
         val input = EditText(this).apply {
             hint = "输入要发送到 Windows 的文字"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
@@ -348,9 +331,9 @@ class RemoteActivity : ComponentActivity() {
             setPadding(dp(20), dp(4), dp(20), 0)
             addView(input)
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle("发送文字")
-            .setMessage("使用 Unicode 文本注入，不受 Windows 键盘布局影响；每次最多 1024 UTF-8 字节，长文本会自动分段。")
+            .setMessage("将弹出手机键盘。输入完成后点击“发送”；每次最多 1024 UTF-8 字节，长文本会自动分段。")
             .setView(wrapper)
             .setNegativeButton("取消", null)
             .setPositiveButton("发送") { _, _ ->
@@ -362,13 +345,24 @@ class RemoteActivity : ComponentActivity() {
                     try {
                         val active = session ?: throw IllegalStateException("尚未连接")
                         chunks.forEach { active.text(it) }
-                        runOnUiThread { if (!destroyed) status.text = "已发送 ${chunks.size} 段 Unicode 文字" }
+                        runOnUiThread { if (!destroyed) touchControls.setStatus("已发送 ${chunks.size} 段 Unicode 文字") }
                     } catch (e: Exception) {
                         runOnUiThread { if (!destroyed) toast(e.message ?: "发送文字失败") }
                     }
                 }
             }
-            .show()
+            .create()
+        dialog.setOnDismissListener { textDialogShowing = false }
+        dialog.setOnShowListener {
+            input.requestFocus()
+            input.postDelayed({
+                if (!destroyed && dialog.isShowing) {
+                    val keyboard = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+                    keyboard.showSoftInput(input, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+                }
+            }, 120)
+        }
+        dialog.show()
     }
 
     private fun showKeyMenu(anchor: View) {
@@ -377,6 +371,7 @@ class RemoteActivity : ComponentActivity() {
             menu.menu.add(label).setOnMenuItemClickListener { action(); true }
         }
         add("Enter") { tapKey(0x0D) }
+        add("F1") { tapKey(0x70) }
         add("Tab") { tapKey(0x09) }
         add("Esc") { tapKey(0x1B) }
         add("Backspace") { tapKey(0x08) }
@@ -434,6 +429,13 @@ class RemoteActivity : ComponentActivity() {
     }
 
     private fun onRemoteTouch(view: View, event: MotionEvent): Boolean {
+        if (touchControls.isExpanded) {
+            if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+                releaseAll()
+                touchControls.collapseMenu()
+            }
+            return true
+        }
         val now = event.eventTime
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -561,18 +563,65 @@ class RemoteActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (::status.isInitialized) renderConnection()
+        if (::touchControls.isInitialized) renderConnection()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (::touchControls.isInitialized) {
+            when (keyCode) {
+                KeyEvent.KEYCODE_F1 -> {
+                    localKeys += keyCode
+                    if (event.repeatCount == 0) onSessionControl(RemoteControlAction.Toggle, touchControls.menuButton)
+                    return true
+                }
+                KeyEvent.KEYCODE_F2 -> {
+                    localKeys += keyCode
+                    if (event.repeatCount == 0) {
+                        releaseAll()
+                        touchControls.collapseMenu()
+                        showTextDialog()
+                    }
+                    return true
+                }
+                KeyEvent.KEYCODE_ESCAPE -> if (touchControls.isExpanded) {
+                    if (event.action == KeyEvent.ACTION_DOWN) localKeys += keyCode
+                    if (event.repeatCount == 0) {
+                        releaseAll()
+                        touchControls.collapseMenu()
+                    }
+                    return true
+                }
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (localKeys.remove(keyCode)) return true
+        return super.onKeyUp(keyCode, event)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (!hasFocus) {
             releaseAll()
+        } else if (::screen.isInitialized) {
+            hideSystemBars(screen.rootView)
+        }
+    }
+
+    private fun hideSystemBars(view: View) {
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
         }
     }
 
     override fun onStop() {
         timeoutHandler.removeCallbacksAndMessages(null)
+        localKeys.clear()
         val attempt = connectionState.snapshot().attempt
         if (attempt > 0 && connectionState.background(attempt)) {
             // Invalidate every late Go callback and release held mouse buttons/keys before the
@@ -586,6 +635,7 @@ class RemoteActivity : ComponentActivity() {
 
     override fun onDestroy() {
         timeoutHandler.removeCallbacksAndMessages(null)
+        localKeys.clear()
         gestureHandler.removeCallbacksAndMessages(null)
         val attempt = connectionState.snapshot().attempt
         if (attempt > 0) connectionState.background(attempt)
@@ -594,18 +644,6 @@ class RemoteActivity : ComponentActivity() {
         closeTransport(clearScreen = true)
         io.shutdown()
         super.onDestroy()
-    }
-
-    private fun overlayButton(label: String, action: (View) -> Unit) = Button(this).apply {
-        text = label
-        isAllCaps = false
-        textSize = 12f
-        minWidth = 0
-        minimumWidth = 0
-        setPadding(dp(8), dp(2), dp(8), dp(2))
-        setTextColor(Color.WHITE)
-        background = null
-        setOnClickListener(action)
     }
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()

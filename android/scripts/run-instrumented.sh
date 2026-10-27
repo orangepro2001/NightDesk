@@ -18,7 +18,7 @@ adb -s "$serial" install -r "$android_dir/app/build/outputs/apk/androidTest/rele
 adb -s "$serial" shell am instrument -w -e class dev.nightdesk.android.HostStoreInstrumentedTest dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner || status=1
 # MainUiInstrumentedTest verifies the four paginated sections switch without starting remote services.
 adb -s "$serial" shell am instrument -w -e class dev.nightdesk.android.MainUiInstrumentedTest dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner || status=1
-# RemoteControlUiInstrumentedTest verifies the touch-control hint and the always-visible release control without opening a real remote session.
+# RemoteControlUiInstrumentedTest verifies the collapsed edge handle, on-demand sidebar, keyboard affordances and release action without opening a real remote session.
 adb -s "$serial" shell am instrument -w -e class dev.nightdesk.android.RemoteControlUiInstrumentedTest dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner || status=1
 # UpdateFlowInstrumentedTest needs the tailnet update origin explicitly; without
 # it the test fails with "missing updateOrigin" instead of testing the feed.

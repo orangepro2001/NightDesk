@@ -39,6 +39,30 @@ public sealed class NxViewerWindow : Window
         TextAlignment = TextAlignment.Center,
         MaxWidth = 720
     };
+    private readonly Button menuButton = new()
+    {
+        Content = "☰",
+        ToolTip = "显示或隐藏远控控制栏（F1）",
+        FontSize = 18,
+        Padding = new Thickness(10, 4, 10, 4),
+        Background = new SolidColorBrush(Color.FromArgb(224, 27, 37, 34)),
+        Foreground = Brushes.White,
+        BorderThickness = new Thickness(0),
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Center,
+        Focusable = true
+    };
+    private readonly Border controlsPanel = new()
+    {
+        Background = new SolidColorBrush(Color.FromArgb(244, 23, 33, 31)),
+        BorderBrush = new SolidColorBrush(Color.FromRgb(74, 98, 91)),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(10),
+        Padding = new Thickness(12),
+        HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Stretch,
+        Visibility = Visibility.Collapsed
+    };
     private readonly Stopwatch pointerClock = Stopwatch.StartNew();
     private readonly HashSet<Key> pressedKeys = new();
     private WriteableBitmap? bitmap;
@@ -46,6 +70,8 @@ public sealed class NxViewerWindow : Window
     private bool connected;
     private bool closing;
     private bool closeConfirmed;
+    private bool controlsVisible;
+    private bool suppressNextMouseUp;
     private TimeSpan lastPointerSent;
 
     public NxViewerWindow(NxViewerTarget target, string pairingCode, string fingerprint,
@@ -67,42 +93,6 @@ public sealed class NxViewerWindow : Window
         FontFamily = new FontFamily("Microsoft YaHei UI");
 
         var root = new Grid();
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-        var header = new Border
-        {
-            Background = new SolidColorBrush(Color.FromRgb(27, 37, 34)),
-            Padding = new Thickness(16, 12, 16, 12)
-        };
-        var headerGrid = new Grid();
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var labels = new StackPanel();
-        labels.Children.Add(new TextBlock
-        {
-            Text = "DESKTOP → DESKTOP · " + target.Address,
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 13,
-            Foreground = new SolidColorBrush(Color.FromRgb(166, 181, 170))
-        });
-        labels.Children.Add(status);
-        headerGrid.Children.Add(labels);
-        var close = new Button
-        {
-            Content = "断开并关闭",
-            Padding = new Thickness(14, 8, 14, 8),
-            Background = new SolidColorBrush(Color.FromRgb(52, 68, 59)),
-            Foreground = new SolidColorBrush(Color.FromRgb(230, 238, 234)),
-            BorderThickness = new Thickness(0)
-        };
-        close.Click += (_, _) => Close();
-        Grid.SetColumn(close, 1);
-        headerGrid.Children.Add(close);
-        header.Child = headerGrid;
-        root.Children.Add(header);
-
         var viewport = new Grid
         {
             Background = Brushes.Black,
@@ -111,23 +101,44 @@ public sealed class NxViewerWindow : Window
         };
         viewport.Children.Add(screen);
         viewport.Children.Add(overlay);
-        Grid.SetRow(viewport, 1);
         root.Children.Add(viewport);
-
-        var footer = new Border
+        var side = new StackPanel { Width = 260 };
+        side.Margin = new Thickness(12, 56, 12, 12);
+        side.Children.Add(new TextBlock
         {
-            Background = new SolidColorBrush(Color.FromRgb(17, 24, 23)),
-            Padding = new Thickness(16, 8, 16, 8)
-        };
-        footer.Child = new TextBlock
+            Text = "远控控制",
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White,
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+        side.Children.Add(status);
+        side.Children.Add(new TextBlock
         {
-            Text = "鼠标与键盘会发送到远端。窗口失焦或关闭时自动释放按键和鼠标按钮。Ctrl/Alt 组合键按远端键码发送，普通文字按 Unicode 提交。",
+            Text = "鼠标与键盘会发送到远端。F1 显示/隐藏本栏；需发送远端 F1 时使用下方专用按钮。窗口失焦或关闭时自动释放按键和鼠标按钮。",
             Foreground = new SolidColorBrush(Color.FromRgb(143, 167, 154)),
             FontSize = 12,
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12)
+        });
+        var sendF1 = new Button { Content = "发送 F1 到远端", Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 4, 0, 4) };
+        sendF1.Click += (_, _) =>
+        {
+            if (!connected || session is null) return;
+            session.PostKey(true, 0x70);
+            session.PostKey(false, 0x70);
         };
-        Grid.SetRow(footer, 2);
-        root.Children.Add(footer);
+        side.Children.Add(sendF1);
+        var release = new Button { Content = "释放全部按键和鼠标", Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 4, 0, 4) };
+        release.Click += (_, _) => { pressedKeys.Clear(); ReleaseInput(); };
+        side.Children.Add(release);
+        var close = new Button { Content = "断开并关闭", Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 4, 0, 4) };
+        close.Click += (_, _) => Close();
+        side.Children.Add(close);
+        controlsPanel.Child = side;
+        viewport.Children.Add(controlsPanel);
+        viewport.Children.Add(menuButton);
+        menuButton.Click += (_, _) => ToggleControls();
         Content = root;
 
         SetStatus("正在建立固定证书的 QUIC 连接…");
@@ -143,6 +154,17 @@ public sealed class NxViewerWindow : Window
         screen.MouseWheel += OnMouseWheel;
         Closing += OnClosing;
         Closed += (_, _) => ReleaseInput();
+    }
+
+    private void ToggleControls()
+    {
+        controlsVisible = !controlsVisible;
+        controlsPanel.Visibility = controlsVisible ? Visibility.Visible : Visibility.Collapsed;
+        menuButton.Content = controlsVisible ? "×" : "☰";
+        menuButton.VerticalAlignment = controlsVisible ? VerticalAlignment.Top : VerticalAlignment.Center;
+        menuButton.Margin = controlsVisible ? new Thickness(0, 8, 8, 0) : new Thickness(0);
+        pressedKeys.Clear();
+        ReleaseInput();
     }
 
     public event Action<string, bool>? StatusChanged;
@@ -239,6 +261,13 @@ public sealed class NxViewerWindow : Window
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.F1)
+        {
+            if (!e.IsRepeat) ToggleControls();
+            e.Handled = true;
+            return;
+        }
+        if (controlsVisible) return;
         if (!connected || session is null) return;
         Key key = e.Key == Key.System ? e.SystemKey : e.Key;
         if (key == Key.ImeProcessed) return;
@@ -253,6 +282,12 @@ public sealed class NxViewerWindow : Window
     private void OnPreviewKeyUp(object sender, KeyEventArgs e)
     {
         Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (key == Key.F1)
+        {
+            e.Handled = true;
+            return;
+        }
+        if (controlsVisible) return;
         if (key == Key.ImeProcessed) return;
         bool wasPressed = pressedKeys.Remove(key);
         if (!connected || session is null || !wasPressed || !ShouldSendKey(key)) return;
@@ -277,6 +312,11 @@ public sealed class NxViewerWindow : Window
 
     private void OnPreviewTextInput(object sender, TextCompositionEventArgs e)
     {
+        if (controlsVisible)
+        {
+            e.Handled = true;
+            return;
+        }
         if (!connected || session is null || string.IsNullOrEmpty(e.Text)) return;
         if (e.Text.Any(char.IsControl)) return;
         session.PostText(e.Text);
@@ -285,6 +325,7 @@ public sealed class NxViewerWindow : Window
 
     private void OnMouseMove(object sender, MouseEventArgs e)
     {
+        if (controlsVisible) return;
         if (!connected || session is null) return;
         if (e.LeftButton != MouseButtonState.Pressed && e.MiddleButton != MouseButtonState.Pressed &&
             e.RightButton != MouseButtonState.Pressed && pointerClock.Elapsed - lastPointerSent < TimeSpan.FromMilliseconds(33))
@@ -298,6 +339,13 @@ public sealed class NxViewerWindow : Window
 
     private void OnMouseDown(object sender, MouseButtonEventArgs e)
     {
+        if (controlsVisible)
+        {
+            suppressNextMouseUp = true;
+            ToggleControls();
+            e.Handled = true;
+            return;
+        }
         if (!connected || session is null) return;
         int? button = ButtonNumber(e.ChangedButton);
         if (button is null || !TryMap(e.GetPosition(screen), out int x, out int y)) return;
@@ -309,6 +357,12 @@ public sealed class NxViewerWindow : Window
 
     private void OnMouseUp(object sender, MouseButtonEventArgs e)
     {
+        if (controlsVisible || suppressNextMouseUp)
+        {
+            suppressNextMouseUp = false;
+            e.Handled = true;
+            return;
+        }
         int? button = ButtonNumber(e.ChangedButton);
         if (button is null) return;
         if (TryMap(e.GetPosition(screen), out int x, out int y)) session?.PostMouseButton(false, button.Value, x, y);
@@ -318,6 +372,11 @@ public sealed class NxViewerWindow : Window
 
     private void OnMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        if (controlsVisible)
+        {
+            e.Handled = true;
+            return;
+        }
         if (!connected || session is null || !TryMap(e.GetPosition(screen), out int x, out int y)) return;
         session.PostWheel(e.Delta / 120, x, y);
         e.Handled = true;
