@@ -190,7 +190,9 @@ public sealed class NxViewerWindow : Window
     {
         if (bitmap is null || bitmap.PixelWidth != update.Width || bitmap.PixelHeight != update.Height)
         {
-            bitmap = new WriteableBitmap(update.Width, update.Height, 96, 96, PixelFormats.Bgra32, null);
+            // GDI 32-bit DIBs leave the high byte undefined; treat the frame as
+            // opaque BGRx so WPF doesn't blend captured colors with the viewer.
+            bitmap = new WriteableBitmap(update.Width, update.Height, 96, 96, PixelFormats.Bgr32, null);
             screen.Source = bitmap;
         }
         int stride = update.Width * 4;

@@ -2,42 +2,43 @@
 
 更新日期：2026-10-27（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：确认并修复 Android 鼠标释放/滚轮消息缺少坐标造成的指针复位；Android 1.3.1 已构建、发布并在模拟器验证升级。Windows 1.6.1 不变。
+本轮范围：修复 NX Android BGRA/RGBA 通道错位与 WPF 对 GDI 未定义 alpha 的误解释，构建并分发 Windows 1.6.2 / Android 1.3.2；模拟器通过颜色回归和线上更新验证。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
-| 最新实现提交 | `4a9930bbadb9b58a873307088914881636b71ac3` |
-| Windows | 1.6.1 / 10601，AI ZIP 已发布；生产桌面未替换 |
-| Windows ZIP | 85184039 字节，SHA-256 `ae3de5075dca53b13d55d36409520c08f89fa405bb3d5fbcf1f67e624e64b7ae` |
-| Windows EXE | 201922308 字节，SHA-256 `962dbc32ec341661e6292c68c1331803f8b4475a896d834661ca70e9410fb74a` |
+| 最新实现提交 | 本轮代码/文档提交待推送 |
+| Windows | 1.6.2 / 10602，AI ZIP 已发布；生产桌面未替换 |
+| Windows ZIP | 85184082 字节，SHA-256 `9856a7c03b9dff7b5ed89fbf106a597add1ec983a8f1b43db340fbfd13694717` |
+| Windows EXE | 201922308 字节，SHA-256 `cc986ac254941ed6029a46d5ae65978d5233e82904471e1145670edcf067403f` |
 | nx-host | 0.2.1，7940608 字节，SHA-256 `88233ba806d9a7ebe4bda5c66a2e4c61e0d9dc9b43c48787170ca68e6087b9f0` |
-| Android | 1.3.1 / 10，55076236 字节，SHA-256 `11496d15cd997cff45e37637a828548a41c396fdfeb403d948839424eb3f0311` |
+| Android | 1.3.2 / 11，55076236 字节，SHA-256 `1f5fc894074d468f92b6f19f0fbea64be1f7c55c1df696544690d630a0206118` |
 | Android 证书 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
 | 服务 | active / enabled；healthz = ok android=ok windows=ok |
 
 [双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk) · [Windows ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip) · [Android APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 
-完整恢复说明见 `C:\dev\NightDesk\docs\20261027-134609-android-mouse-release-coordinate-1.3.1-handoff.md`。
+完整恢复说明见 `C:\dev\NightDesk\docs\20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`。
 
 ## 2. 自动化结果（本轮已复核）
 
 | 检查 | 结果 | 边界 |
 |---|---|---|
-| Windows Release | 210 项通过；0 warnings / 0 errors | 无显示状态改变 |
+| Windows Release | 211 项通过；0 warnings / 0 errors | 无显示状态改变；含 NX 像素格式回归 |
 | WPF 布局 | 980/1180 DIP × 五页通过；两组三字段独立列 | 纯 XAML，无应用服务 |
-| 更新下载 | 真实 HTTPS -> manifest -> 85MB ZIP -> 双 EXE 哈希/解包通过 | 临时缓存，不安装生产程序 |
+| Windows 更新下载 | `DesktopUpdateService` 从 live HTTPS feed 下载 1.6.2，验证清单、SHA-256 并 stage 双 EXE | 隔离临时缓存，没有触发安装或替换生产程序 |
 | 安装 helper | 等待测试进程、替换双合成文件、保留备份、重启合成 WinExe 通过 | 临时目录，不是真实升级 |
 | Feed | 5 Python tests 通过 | Android 兼容、Windows 路由、前缀代理、双平台页面 |
 | Android JVM | 36 项通过 | CoreTest 10 + NxConnectionTest 10 + NxTest 7 + RemoteGestureTest 9 |
 | Android lint/build | 0 errors / 23 warnings；release/debug/AndroidTest 构建通过 | AI 主机 |
-| Android 仪器 | OK (6 tests) | HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1 |
+| Android 仪器 | 6 项标准 + 1 项颜色回归通过 | HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1；色条单测另跑 |
+| Android 颜色回归 | AI emulator 上红/绿/蓝/非对称 RGB 全部精确匹配 | 输入包含 alpha=0 与 0x7f，不经过 Windows GDI |
 | Android 手势 | 点按/移动/长按拖动/双指滚动/取消/强制释放覆盖通过 | 模拟器与 JVM；非真实 Windows 输入验收 |
 | Go 鼠标坐标回归 | MouseDown/MouseUp/Wheel/ReleaseAll 保留最后鼠标坐标；旧实现的回归测试先失败、修复后通过 | 远程集成测试使用假注入器，不调用真实 SendInput |
 | Android Go AAR | 已从修复后的 gomobile 核心重建，SHA-256 `bfa20670742caace05c940fd68fc790b3bf49b6a431d8f2268712936d08f22ad` | AI 主机交叉构建 |
-| Android 更新 | 模拟器从 code 9 经 HTTPS 下载、哈希校验并安装 code 10；6 项仪器测试通过 | 非物理手机远控验收 |
-| 线上清单/HEAD | Windows 1.6.1 / Android 1.3.1；HTTP 200，长度/哈希一致 | 更新源发布，不代表真实远控验收 |
+| Android 更新 | 模拟器从 code 10 经 HTTPS 下载、大小/SHA-256/签名校验并安装 code 11 | 非物理手机远控验收 |
+| 线上清单/HEAD/GET | Windows 1.6.2 / Android 1.3.2；HTTP 200，长度和完整下载哈希一致 | 更新源发布，不代表真实远控验收 |
 | VDD 载荷 | 原有大小/签名/提取/篡改拒绝断言通过 | 不执行真实驱动安装 |
 
 Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名。生产升级、真实 GDI/SendInput、DPI/UAC、物理 Android 和双机 tailnet 仍待人工验收。
@@ -59,6 +60,15 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - Android AAR 已重建；36 JVM tests、lint、Release/Debug/AndroidTest build 和 6 项模拟器仪器测试通过。线上 APK `1.3.1 / code 10` 实际下载 SHA-256 匹配，模拟器从 code 9 更新安装到 code 10。
 - 这验证了 Android→QUIC 的鼠标坐标消息，不等于系统鼠标输入的真机验收。尚待 Android 真机配对隔离 Windows 测试机验证真实抬手/滚轮/失焦、DPI、屏幕边缘和不同显示器；没有在生产桌面调用真实 `SendInput`。
 
+
+### 2.3 NX 画面颜色异常（Windows 1.6.2 / Android 1.3.2）
+
+- Go frame 与 tile payload 保持 BGRA，未改变线上协议。
+- Android AI 模拟器色条 Red 复现：BGRA `[0,0,255,0]` 按原逻辑导入/绘制成蓝色。现将每像素 B/R 互换为 `ARGB_8888` 预期缓冲顺序，并在同一循环把 GDI 未定义 alpha 置为不透明；没有新增整帧遍历。纯红/绿/蓝及非对称 RGB 仪器回归通过。
+- WPF viewer 原先把 GDI 32-bit DIB 高字节作为 `Bgra32` alpha。现使用 `Bgr32` 忽略该字节，不触碰 tile 或逐像素重排；Windows 回归断言通过。
+- Android 1.3.2/code 11 与 Windows 1.6.2/10602 已发布。manifest、HTTPS HEAD 长度、完整 GET 大小与 SHA-256 均匹配，历史不可变 APK/ZIP 保留。
+- 更新链路验证：Windows updater 只在 temp cache staging 双 EXE，未调用安装 helper；Android emulator 从 code 10 运行 UpdateFlow 下载并校验，再从 HTTPS 安装实际 APK 至 code 11。不是生产程序更新。
+- Android 真机画面、Windows 实时 GDI alpha/色彩、HDR/ICC/广色域、物理双机体验均未在本轮验收；不能据模拟器/测试帧宣称所有硬件场景已完全验收。
 
 ## 3. go-nx 远程控制（阶段 1-7）
 

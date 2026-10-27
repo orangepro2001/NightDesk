@@ -2,8 +2,18 @@
 
 更新时间：2026-10-27（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前实现：Windows 1.6.1 / nx-host 0.2.1 / Android 1.3.1；Go/Android 实现提交 `4a9930bbadb9b58a873307088914881636b71ac3`
-最新阶段交接：`docs\20261027-134609-android-mouse-release-coordinate-1.3.1-handoff.md`
+当前实现：Windows 1.6.2 / nx-host 0.2.1 / Android 1.3.2
+最新阶段交接：`docs\20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`
+
+## 最新阶段：NX 颜色修复与双端版本分发（2026-10-27）
+
+- 已发布 Windows 1.6.2 / 10602 与 Android 1.3.2 / code 11。AI 更新服务健康 `ok android=ok windows=ok`；两端 HTTPS manifest、HEAD 长度和实际下载 SHA-256 均匹配，历史 APK/ZIP 保留。
+- Android 根因由 AI 模拟器色条确认：Go/GDI tile 是 BGRA，直接拷入 Android `ARGB_8888` 缓冲区时红、蓝通道对调。现在在单次像素循环中交换 B/R 并强制 alpha=255；纯红/绿/蓝和非对称色条仪器测试通过。
+- WPF NX viewer 从 `PixelFormats.Bgra32` 改为 `PixelFormats.Bgr32`，将 GDI 32-bit DIB 的未定义高字节作为未使用字节，避免其被 WPF 当 alpha 混合。原始 Go/tile BGRA 协议不变。
+- Windows：211 项断言、0 warning/error Release build、AI Go test/vet/Windows cross-vet/build、合成 nx-probe 通过；真实 C# Windows 更新器从 live feed 下载并在隔离临时缓存校验候选，未安装。
+- Android：36 JVM tests、lint 0 errors / 23 warnings、debug/release/AndroidTest 构建，6 项常规 instrumented 与 1 项色条 instrumented 通过。模拟器从 code 10 执行线上 UpdateFlow 下载并校验 code 11，再通过 HTTPS 安装 APK，最终 reports code 11 / 1.3.2，签名证书未变。
+- 物理 Android 真机、真实 Windows GDI/SendInput、双机 tailnet 和生产桌面自更新仍未验收。本阶段没有替换/重启生产桌面或操作显示拓扑。
+- 详细恢复说明、版本哈希、清单备份、构建与复验命令见最新 timestamped handoff。
 
 ## 1. 当前交付状态
 
@@ -71,7 +81,7 @@
 - Windows manifest：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/api/v1/windows-update`
 - 最新 APK：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk`
 - 更新清单：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update`
-- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=10`
+- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=11`
 - 桌面控制：`https://minipc-xoh4t.tail9f7f1f.ts.net/`
 
 未启用 Funnel；访问边界由 tailnet ACL 控制。

@@ -9,7 +9,6 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
 import java.nio.ByteBuffer
-import java.nio.ByteOrder
 
 /**
  * Draws a persistent BGRA host frame. Go sends a full frame first and then only
@@ -60,9 +59,14 @@ class RemoteScreenView @JvmOverloads constructor(
             val targetCanvas = frameCanvas ?: return
             if (x < 0 || y < 0 || x + width > hostWidth || y + height > hostHeight) return
 
-            // GDI's 32-bit DIB has undefined alpha. Android would treat alpha=0 as
-            // transparent, so force opacity before handing the byte buffer to Bitmap.
-            for (index in 3 until width * height * 4 step 4) pixels[index] = 0xFF.toByte()
+            // Go/GDI sends BGRA; ARGB_8888's packed buffer layout on Android is
+            // RGBA. Convert channels and discard GDI's undefined alpha together.
+            for (index in 0 until width * height * 4 step 4) {
+                val blue = pixels[index]
+                pixels[index] = pixels[index + 2]
+                pixels[index + 2] = blue
+                pixels[index + 3] = 0xFF.toByte()
+            }
 
             if (patch == null || patch!!.width != width || patch!!.height != height) {
                 patch?.recycle()
@@ -71,7 +75,7 @@ class RemoteScreenView @JvmOverloads constructor(
                 }
                 patchCanvas = Canvas(patch!!)
             }
-            val source = ByteBuffer.wrap(pixels, 0, width * height * 4).order(ByteOrder.nativeOrder())
+            val source = ByteBuffer.wrap(pixels, 0, width * height * 4)
             patch!!.copyPixelsFromBuffer(source)
             targetCanvas.drawBitmap(patch!!, x.toFloat(), y.toFloat(), paint)
         }

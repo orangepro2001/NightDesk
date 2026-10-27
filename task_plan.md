@@ -187,3 +187,31 @@ Success criteria: every mouse release/wheel message after a Move preserves its n
 ## Next Step
 
 - The code and update-feed release are complete. When an isolated Windows test host and Android phone are available, execute the real-input acceptance checklist in `docs/20261027-134609-android-mouse-release-coordinate-1.3.1-handoff.md`.
+
+## Current task: NX 颜色链路修复并分发双端版本
+
+Goal: identify and fix the reported NX color rendering issue with color-bar regression tests and polish the resulting render path; then distribute both current applications, verify update manifests/artifacts, and push source/version/recovery documentation.
+
+1. [done] Confirm source version, worktree changes, release pipeline and AI feed/service state.
+2. [done] Add emulator pixel-color regression coverage and trace frame bytes through GDI/tile/Android; localize the abnormal color rendering.
+3. [done] Apply the minimal correct color/alpha/rendering fix and polish the NX viewing path; rerun Go, Android, and Windows pixel-format checks.
+4. [done] Build Windows 1.6.2/code 10602 and Android 1.3.2/code 11 candidates with full platform verification.
+5. [done] Publish immutable packages, verify HTTPS manifests/hashes and Android emulator update path.
+6. [in progress] Update README, acceptance and timestamped recovery docs; commit and push source plus documentation.
+
+Release note policy: this is a maintenance re-release of the current feature set; do not claim unimplemented functionality. Keep the Android signing identity and Windows sidecar version 0.2.1 unchanged. Never overwrite existing immutable feed artifacts.
+
+### Current observations
+
+- Workspace started on `main` at `c1f37f2` with user-requested version edits and task records already modified; preserve these changes. New code and recovery docs are now in this worktree; push is pending.
+- AI update service is active and health endpoint reports `ok android=ok windows=ok`; manifests now serve Windows 1.6.2 / 10602 and Android 1.3.2 / 11.
+- AI feed backups: Android `manifest.json.pre-nx-colors-1.3.2-20261027-1625`; Windows `windows-manifest.json.bak-20261027-162723`. Prior immutable artifacts remain present.
+- On AI, the feed service listens on loopback port 17768; `/healthz` is `ok android=ok windows=ok`. Before publication, immutable targets `nightdesk-11.apk` and `windows/nightdesk-windows-1.6.2.zip` were both verified absent; prior manifests were Android 1.3.1/code 10 and Windows 1.6.1/code 10601.
+- Red/green identified two client-specific issues: Android imported Go/GDI BGRA bytes as RGBA, swapping red/blue; WPF `Bgra32` treated the undefined high byte of GDI's 32-bit DIB as alpha. Android now swaps B/R while forcing alpha opaque in one pass; WPF uses Bgr32 to ignore that byte. Go protocol bytes remain BGRA.
+- Color verification: AI emulator color bar tests red, green, blue, and asymmetric RGB with invalid alpha and passes after the fix. Android full build/JVM 36/lint 23 warnings/6 standard instrumented tests pass; the added color instrumentation test passes separately (7 total instrumented tests). Installed emulator reports code 11 / 1.3.2.
+- Windows 211 assertions pass, Release build has 0 warnings/errors, published candidate has 1.6.2 and nx-host 0.2.1; ZIP contains exactly release.json and the two EXEs, all package member hashes match. NX safe synthetic probe passes 4 frames, 538 tile updates and 7/7 receipts. Go `test`, `vet`, Windows/amd64 cross-vet/build pass.
+- Candidate SHA-256: Windows ZIP 85,184,082 bytes `9856a7c03b9dff7b5ed89fbf106a597add1ec983a8f1b43db340fbfd13694717`; Android APK 55,076,236 bytes `1f5fc894074d468f92b6f19f0fbea64be1f7c55c1df696544690d630a0206118`; signing certificate unchanged.
+
+## Next Step
+
+- Finish synchronized recovery docs, re-check release manifest/hash facts and Git diff, then commit the source/version/docs and push `main` to `origin`.

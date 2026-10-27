@@ -4,21 +4,21 @@
 
 ## 当前版本（2026-10-27 KST）
 
-- Windows **1.6.1** / versionCode **10601**，sidecar **nx-host 0.2.1**；已修复远程画面不显示系统鼠标指针。
-- Android **1.3.1** / versionCode **10**；修复鼠标按键释放、滚轮和全量释放后光标跳回左上角，签名保持不变。
+- Windows **1.6.2** / versionCode **10602**，sidecar **nx-host 0.2.1**；修复 NX viewer 将 GDI 未定义 alpha 当透明通道导致画面颜色异常。
+- Android **1.3.2** / versionCode **11**；修复 NX 远控红蓝通道错位，并忽略 GDI 未定义 alpha；沿用原签名证书。
 - 两份更新均已发布到 AI 服务。仅 tailnet 可达，未启用 Funnel。
-- Windows 210 项测试、独立布局验证、隔离安装验证通过；Go tests/vet、Windows amd64 交叉构建和 4 帧/538 tile/7 输入回执合成探针通过；Android 36 项 JVM 测试、6 项仪器测试通过，lint 0 errors / 23 warnings。
+- Windows 211 项断言、NX 颜色格式回归、实时更新器隔离 staging、安装器隔离验证通过；Go tests/vet、Windows amd64 交叉构建和 4 帧/538 tile/7 输入回执合成探针通过。Android 36 项 JVM 测试、6 项常规仪器测试及独立色条仪器测试通过，lint 0 errors / 23 warnings。
 - **这些结果不代表真实 GDI/SendInput、DPI/UAC、双机 UDP/QUIC 或物理真机验收通过。**
 
 ## 下载与首次升级
 
 - [双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk)
-- [Windows 1.6.1 ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip)
+- [Windows 1.6.2 ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip)
 - [Windows 更新清单](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/api/v1/windows-update)
-- [Android 1.3.1 APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
+- [Android 1.3.2 APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 - [Android 更新清单](https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update)
 
-旧 Windows 客户端没有新更新器，第一次进入 1.6.0 需手动部署 ZIP 中的 **NightDesk.exe 与 nx-host.exe 两个文件**。必须同目录；不能只换主程序。1.6.0 之后启动时和每 6 小时自动检查并下载更高版本，安装前由用户确认“安装并重启”。不静默安装、不强杀主程序。helper 保留 .bak-update，目标目录需要可写。已有 1.6.0 客户端可下载 1.6.1 光标修复更新。
+旧 Windows 客户端没有新更新器，第一次进入 1.6.0 需手动部署 ZIP 中的 **NightDesk.exe 与 nx-host.exe 两个文件**。必须同目录；不能只换主程序。1.6.0 之后启动时和每 6 小时自动检查并下载更高版本，安装前由用户确认“安装并重启”。不静默安装、不强杀主程序。helper 保留 .bak-update，目标目录需要可写。已有 1.6.0/1.6.1 客户端可下载 1.6.2 更新。
 
 ## 功能在哪
 
@@ -56,14 +56,14 @@ HTTPS 管理面与 NX 数据面独立：HTTPS 使用扫码获得的独立长期�
 
 | 产物 | 大小 | SHA-256 |
 |---|---:|---|
-| NightDesk.exe 1.6.1 | 201922308 | `962dbc32ec341661e6292c68c1331803f8b4475a896d834661ca70e9410fb74a` |
+| NightDesk.exe 1.6.2 | 201922308 | `cc986ac254941ed6029a46d5ae65978d5233e82904471e1145670edcf067403f` |
 | nx-host.exe 0.2.1 | 7940608 | `88233ba806d9a7ebe4bda5c66a2e4c61e0d9dc9b43c48787170ca68e6087b9f0` |
-| Windows ZIP 1.6.1 | 85184039 | `ae3de5075dca53b13d55d36409520c08f89fa405bb3d5fbcf1f67e624e64b7ae` |
-| Android APK 1.3.0 | 55075280 | `9e278bafb126b18963764fd829414075c30ba9ee795b39d4ad2f1db443d7aa42` |
+| Windows ZIP 1.6.2 | 85184082 | `9856a7c03b9dff7b5ed89fbf106a597add1ec983a8f1b43db340fbfd13694717` |
+| Android APK 1.3.2 | 55076236 | `1f5fc894074d468f92b6f19f0fbea64be1f7c55c1df696544690d630a0206118` |
 
 Windows ZIP 目前无 Authenticode 签名；HTTPS/tailnet ACL 和 SHA-256 一致性校验不替代独立代码签名。Android 保持原发布证书 `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`。
 
-本地：`C:\dev\NightDesk\artifacts\win-x64-1.6.0`、`C:\dev\NightDesk\artifacts\windows-packages\nightdesk-windows-1.6.0.zip`、`C:\dev\NightDesk\artifacts\android\nightdesk-1.2.0.apk`。
+本地：`C:\dev\NightDesk\artifacts\win-x64-1.6.2`、`C:\dev\NightDesk\artifacts\windows-packages\nightdesk-windows-1.6.2.zip`、`C:\dev\NightDesk\artifacts\android\nightdesk-1.3.2.apk`。
 
 ## 开发与恢复
 
@@ -73,11 +73,11 @@ Windows 使用 .NET SDK 10.0.402。测试入口是可执行断言程序，使用
 dotnet run --project C:\dev\NightDesk\tests\NightDesk.Tests\NightDesk.Tests.csproj -c Release
 dotnet run --project C:\dev\NightDesk\tools\layout-smoke\layout-smoke.csproj -c Release -- C:\dev\NightDesk
 powershell.exe -NoProfile -File C:\dev\NightDesk\tools\publish-windows.ps1
-powershell.exe -NoProfile -File C:\dev\NightDesk\tools\package-windows.ps1 -Version 1.6.0 -VersionCode 10600
+powershell.exe -NoProfile -File C:\dev\NightDesk\tools\package-windows.ps1 -Version 1.6.2 -VersionCode 10602
 powershell.exe -NoProfile -File C:\dev\NightDesk\tools\test-desktop-update-install.ps1
 ```
 
-Android SDK/JDK/Gradle/adb/emulator/签名只在 SSH 主机 AI 使用；当前构建目录 /home/tony/dev/nightdesk-android-1.2.0，不触碰其它工作 main tmux 会话。
+Android SDK/JDK/Gradle/adb/emulator/签名只在 SSH 主机 AI 使用；当前构建目录 `/home/tony/dev/nightdesk-android-1.3.0`。不触碰其它工作 tmux 会话。
 
 - 配置/快照：`%LOCALAPPDATA%\NightDesk`。
 - 桌面更新缓存：`%LOCALAPPDATA%\NightDesk\updates\windows`；安装日志 install.log。
@@ -85,6 +85,7 @@ Android SDK/JDK/Gradle/adb/emulator/签名只在 SSH 主机 AI 使用；当前�
 
 ## 文档
 
+- [NX 颜色修复、双端 1.6.2/1.3.2 发布与恢复说明](C:/dev/NightDesk/docs/20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md)
 - [本轮远控光标修复、Windows 1.6.1 与恢复说明](C:/dev/NightDesk/docs/20261027-123458-windows-cursor-capture-1.6.1-handoff.md)
 - [分页 UI、更新分发、验收、回滚与现场边界](C:/dev/NightDesk/docs/20261027-080919-paginated-ui-desktop-update-1.6.0-handoff.md)
 - [综合交接](C:/dev/NightDesk/docs/HANDOFF.md)

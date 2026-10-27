@@ -123,6 +123,13 @@
 - Go tests/race/vet and Windows cross-vet/build passed on AI. A fresh gomobile AAR was included in Android 1.3.1/code 10; full Android build, 36 JVM tests, six instrumentation tests, and code9→code10 emulator update/install passed.
 - Limit: the fake injector proves the coordinates delivered over QUIC, not actual Windows `SendInput`; real acceptance needs an isolated Windows host and Android phone.
 
+## Dual-platform maintenance release (2026-10-27)
+
+- Current pushed code is `c1f37f2` on a clean `main` branch. Current versions: Windows 1.6.1 / 10601, sidecar nx-host 0.2.1; Android 1.3.1 / code 10.
+- User explicitly requests new distributable versions for both targets. Plan is to re-release the existing feature set as Windows 1.6.2 / 10602 and Android 1.3.2 / 11; preserve Android cert and nx-host binary/version.
+- AI service is active/healthy. Need read `/home/tony/dev/nightdesk-update-feed/manifest.json` and `windows-manifest.json` directly and verify target versioned files are absent before writing releases.
+- First combined JSON one-liner failed from SSH/zsh quoting only; no remote files were changed. Use plain `cat` and `ls`, not nested shell-escaped Python.
+
 ## AI Android toolchain / feed
 
 - Android SDK/JDK/Gradle/adb/emulator operations run only on SSH host `AI`; Windows does not install the Android toolchain.
@@ -157,3 +164,15 @@
 - Release tests: **210 passed**, no display mutation.
 - Release build: **0 warnings / 0 errors**.
 - `C:\dev\NightDesk` is a Git repository with remote `origin`; do not treat local artifact hashes as proof of end-to-end remote-control acceptance.
+# 2026-10-27 — NX 颜色修复与发布（完成）
+
+- 协议事实：Go `tile.Frame`、Android callback 与 Windows viewer 输入帧均为 BGRA；tile 编码/解码字节完全保真，本轮未修改 Go 协议或 sidecar。
+- 确认 Android 根因：原始 BGRA bytes 直接拷入 Android `ARGB_8888` Bitmap raw buffer 后，纯红被绘制为蓝。修复在一个 pass 内交换 B/R 并将 alpha 设为 255；Android byte buffer 不再设置 native byte order，因为它只复制原始 byte 序列。
+- 确认 WPF 根因：GDI 32-bit DIB 高字节未定义，但 viewer `PixelFormats.Bgra32` 将其按 alpha 混合。使用 `PixelFormats.Bgr32` 忽略无效字节，不做每像素转换。
+- Red/Green：Android AI emulator 色条修复前因纯红显示成蓝色失败，修复后 red/green/blue/非对称 RGB 均精确通过；测试同时验证 alpha=0/0x7f 被强制为不透明。WPF 静态像素格式检查在 Bgra32 时失败，改 Bgr32 后通过。
+- Android AI build：36 JVM tests；lint 0 errors / 23 warnings；Debug/Release/AndroidTest 成功；HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1 = 6 项常规仪器测试通过，加 1 项颜色仪器测试通过。
+- Android update：模拟器从 code 10 运行线上 UpdateFlow，确认 code 11 下载和 hash；通过 HTTPS 安装 APK 后显示 `versionCode=11`, `versionName=1.3.2`。证书 SHA-256 保持 `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767`。
+- Windows：211 项断言通过；Release 0 warnings/errors；`DesktopUpdateService -live-update` 从公网 tailnet feed 下载 1.6.2 并隔离 staging 两个 EXE，未执行安装；NX 合成 probe 4 frames / 538 tiles / 7 of 7 receipts。
+- Go/AI：`go test ./...`、`go vet ./...`、Windows amd64 cross-vet/build 通过；未改 Go 源码。
+- 已发布 Windows 1.6.2/code10602 和 Android 1.3.2/code11；HTTPS manifest、HEAD 长度与完整 GET SHA-256 一致，healthz=`ok android=ok windows=ok`。Release hashes 与具体 backup paths 记录于 `docs/20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`。
+- 未做真实 Android 手机、Windows 实时 GDI/SendInput、DPI/HDR/ICC、生产桌面升级验收；无生产进程重启或显示拓扑更改。

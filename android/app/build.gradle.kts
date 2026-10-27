@@ -7,8 +7,8 @@ android {
         applicationId = "dev.nightdesk.android"
         minSdk = 29
         targetSdk = 35
-        versionCode = providers.gradleProperty("nightdeskVersionCode").orElse("10").get().toInt()
-        versionName = providers.gradleProperty("nightdeskVersionName").orElse("1.3.1").get()
+        versionCode = providers.gradleProperty("nightdeskVersionCode").orElse("11").get().toInt()
+        versionName = providers.gradleProperty("nightdeskVersionName").orElse("1.3.2").get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {

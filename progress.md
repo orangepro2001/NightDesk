@@ -1,7 +1,7 @@
 # NightDesk progress
 
 更新时间：2026-10-27 10:10 KST（Asia/Seoul）
-最新恢复入口：docs/20261027-134609-android-mouse-release-coordinate-1.3.1-handoff.md
+最新恢复入口：docs/20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md
 
 ## Android 移动远控体验（2026-10-27）
 
@@ -72,3 +72,23 @@
 - 模拟器先安装 code 9，UpdateFlow 从线上下载候选并校验长度/hash，然后安装实际 HTTPS 下载的 APK，最终报告 code 10。Feed health=`ok android=ok windows=ok`。
 - 实现提交 `4a9930bbadb9b58a873307088914881636b71ac3` 已推送。新增详细 handoff，README、HANDOFF、ACCEPTANCE 与恢复进度已同步，随文档提交推送。
 - 真正 Windows SendInput/Android 真机远控仍未验收；没有对生产桌面执行输入、GDI 或显示器操作。
+
+## 双端新版本分发（2026-10-27）
+
+- 用户要求分发并推送 Windows 与 Android 新版本。起点是干净 `main`、HEAD=`c1f37f2`。
+- 当前版本核对：Windows 1.6.1/code 10601，nx-host 0.2.1；Android 1.3.1/code 10。此次按维护版重新发布当前功能，不声明额外功能改动，目标版本 Windows 1.6.2/code 10602 与 Android 1.3.2/code 11。
+- AI 更新服务已确认 active，health=`ok android=ok windows=ok`。一个带复杂 shell 引号的 manifest 查询失败，未改远端；下一步直接读取服务目录 JSON 文件并检查不可变目标文件，再更新版本号与构建。
+
+## NX 颜色修复与双端发布（2026-10-27）
+
+- 起点 `main` / `c1f37f2`，保留先前工作区中的 Windows 1.6.2、Android 1.3.2/code 11 版本编辑和计划文件改动。
+- 根因复现：Android AI emulator 的 BGRA 纯红色条按原逻辑画成蓝色；Windows WPF `Bgra32` 会将 GDI DIB 未定义的第 4 字节当 alpha。Go/tile BGRA 协议本身没有损坏。
+- 修复：Android 在现有 alpha 清理循环内同时交换 B/R，设 alpha=255（单次 pass）；WPF 改用 `PixelFormats.Bgr32` 忽略该字节；协议和 `nx-host` 0.2.1 不变。
+- Red/Green：Android 新色条 test 修复前失败/修复后纯红绿蓝及非对称 RGB pass，alpha 0 / 0x7f 被忽略；Windows WPF 格式回归修复前失败/修复后全套 pass。
+- AI Android：36 JVM tests，lint 0 errors / 23 warnings，debug/release/AndroidTest build，6 常规 instrumented tests + 色条仪器测试通过。模拟器 code10 -> UpdateFlow download/check -> HTTPS 安装 code11 / 1.3.2。
+- Windows：211 asserts、Release 0 warnings/errors、真实 DesktopUpdateService live-feed 下载/哈希验证/临时 staging、nx-probe 4 frames / 538 tiles / 7/7 receipts 全通过。
+- AI Go：`go test ./...`、`go vet ./...`、Windows amd64 cross-vet/build 通过；Go 源无改动。
+- 双端已发布：Windows 1.6.2/10602 ZIP 85,184,082 bytes SHA-256 `9856a7c03b9dff7b5ed89fbf106a597add1ec983a8f1b43db340fbfd13694717`；Android 1.3.2/code11 APK 55,076,236 bytes SHA-256 `1f5fc894074d468f92b6f19f0fbea64be1f7c55c1df696544690d630a0206118`。HTTPS manifests/HEAD/download hashes一致，签名证书保持不变，health `ok android=ok windows=ok`。
+- 备份：Android manifest `/home/tony/dev/nightdesk-update-feed/manifest.json.pre-nx-colors-1.3.2-20261027-1625`；Windows manifest `/home/tony/dev/nightdesk-update-feed/windows-manifest.json.bak-20261027-162723`。旧 immutable artifacts 保留。
+- 生产桌面未替换、重启或运行真实 GDI/SendInput；HDR/ICC/多 DPI、真机/双机 tailnet 仍需现场验收。详细复建见 `docs/20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`。
+- 本地代码、版本、README、handoff 与 acceptance 文件已更新；下一步复核 git diff/status，提交并推送到 `origin/main`。

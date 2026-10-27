@@ -17,6 +17,27 @@ if (args.Contains("-control"))
     await FakeNxHost.RunAsync(args);
     return;
 }
+if (args.Contains("-live-update"))
+{
+    string updateRoot = Path.Combine(Path.GetTempPath(), "nightdesk-live-update-" + Guid.NewGuid().ToString("N"));
+    try
+    {
+        using var updater = new DesktopUpdateService(updateRoot, currentVersion: new Version(1, 6, 1));
+        WindowsUpdateRelease release = await updater.CheckAndDownloadAsync()
+            ?? throw new Exception("No Windows update was offered.");
+        WindowsUpdateReady ready = updater.Ready()
+            ?? throw new Exception("The downloaded Windows package was not staged.");
+        if (release.Version != "1.6.2" || release.VersionCode != 10602 ||
+            new[] { "NightDesk.exe", "nx-host.exe" }.Any(name => !File.Exists(Path.Combine(ready.Directory, name))))
+            throw new Exception("The live Windows candidate did not match 1.6.2/10602 with both executables.");
+        Console.WriteLine($"PASS: live Windows updater verified {release.Version}/{release.VersionCode} in an isolated cache; no install was requested.");
+    }
+    finally
+    {
+        if (Directory.Exists(updateRoot)) Directory.Delete(updateRoot, true);
+    }
+    return;
+}
 
 int passed = 0;
 void Check(bool condition, string name) { if (!condition) throw new Exception("FAIL: " + name); passed++; Console.WriteLine("PASS: " + name); }
@@ -350,6 +371,9 @@ Reject(() => new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", D
 Reject(() => new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), "PC", 1920, 16385).Validate(), "NX QR rejects too-large frame");
 
 var viewerTarget = NxViewerTarget.Parse("100.100.2.3:7001");
+var viewerWindowSource = File.ReadAllText(FindRepoFile(Path.Combine("src", "NightDesk", "NxViewerWindow.cs")));
+Check(viewerWindowSource.Contains("PixelFormats.Bgr32", StringComparison.Ordinal),
+    "NX WPF viewer ignores undefined GDI DIB alpha");
 Check(viewerTarget.Address == "100.100.2.3:7001" && viewerTarget.Port == 7001, "viewer parses IPv4 and explicit port");
 Check(NxViewerTarget.Parse("host.tailnet.ts.net").Port == 7000, "viewer defaults to UDP 7000");
 Check(NxViewerTarget.Parse("[fd7a:115c:a1e0::2]:7000").Address == "[fd7a:115c:a1e0::2]:7000", "viewer parses bracketed IPv6");
