@@ -8,7 +8,7 @@
 
 | 项目 | 状态 |
 |---|---|
-| 最新实现提交 | `89ed923dae29d555e2c511fe6556c2dd8b563a80` |
+| 最新实现提交 | `ba61db096fc631d02e0399559c8b909b6d519706` |
 | Windows | 1.6.1 / 10601，AI ZIP 已发布；生产桌面未替换 |
 | Windows ZIP | 85184039 字节，SHA-256 `ae3de5075dca53b13d55d36409520c08f89fa405bb3d5fbcf1f67e624e64b7ae` |
 | Windows EXE | 201922308 字节，SHA-256 `962dbc32ec341661e6292c68c1331803f8b4475a896d834661ca70e9410fb74a` |

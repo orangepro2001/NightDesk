@@ -2,7 +2,7 @@
 
 更新时间：2026-10-27（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前实现：Windows 1.6.1 / nx-host 0.2.1 / Android 1.3.0
+当前实现：Windows 1.6.1 / nx-host 0.2.1 / Android 1.3.0；提交 `ba61db096fc631d02e0399559c8b909b6d519706`
 最新阶段交接：`docs\20261027-123458-windows-cursor-capture-1.6.1-handoff.md`
 
 ## 1. 当前交付状态

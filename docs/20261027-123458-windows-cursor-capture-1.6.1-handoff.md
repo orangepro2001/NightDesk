@@ -6,6 +6,8 @@
 
 Windows NightDesk **1.6.1 / versionCode 10601** 与 go-nx host **0.2.1** 已构建、验证并发布到 AI 更新源。Android 客户端保持 1.3.0 / code 9，本次不需要 APK 更新。真实 Windows 桌面输入/抓屏视觉验收仍未做。
 
+实现及恢复文档提交：`ba61db096fc631d02e0399559c8b909b6d519706`（`main`，已推送）。
+
 ## 根因复核
 
 现有 Android 路径把远控 View 的触摸点通过 letterbox 几何映射为 host 像素坐标，手势 reducer 发出 `Move`，并调用 gomobile `Session.move` 发送 `KindMouseMove`。Windows host 通过 `SendInput` 注入绝对鼠标位置。
