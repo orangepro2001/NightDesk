@@ -68,6 +68,8 @@ type Session struct {
 	inputMu sync.Mutex
 	buttons map[int32]struct{}
 	keys    map[int32]struct{}
+	mouseX  int32
+	mouseY  int32
 	closed  bool
 
 	sizeMu sync.RWMutex
@@ -196,7 +198,7 @@ func (s *Session) ReleaseAll() error {
 		delete(s.keys, key)
 	}
 	for button := range s.buttons {
-		if err := s.client.SendInput(proto.Input{Kind: proto.KindMouseUp, Arg: button}); err != nil {
+		if err := s.client.SendInput(proto.Input{Kind: proto.KindMouseUp, X: s.mouseX, Y: s.mouseY, Arg: button}); err != nil {
 			errs = append(errs, err)
 		}
 		delete(s.buttons, button)
@@ -220,7 +222,14 @@ func (s *Session) Height() int {
 
 // Move sends an absolute cursor position in host pixels.
 func (s *Session) Move(x, y int) error {
-	return s.send(proto.Input{Kind: proto.KindMouseMove, X: int32(x), Y: int32(y)})
+	s.inputMu.Lock()
+	defer s.inputMu.Unlock()
+	in := proto.Input{Kind: proto.KindMouseMove, X: int32(x), Y: int32(y)}
+	if err := s.client.SendInput(in); err != nil {
+		return err
+	}
+	s.mouseX, s.mouseY = in.X, in.Y
+	return nil
 }
 
 // MouseDown and MouseUp use button 0=left, 1=right, 2=middle.
@@ -237,7 +246,7 @@ func (s *Session) mouse(button int, down bool) error {
 	if down {
 		kind = proto.KindMouseDown
 	}
-	if err := s.client.SendInput(proto.Input{Kind: kind, Arg: int32(button)}); err != nil {
+	if err := s.client.SendInput(proto.Input{Kind: kind, X: s.mouseX, Y: s.mouseY, Arg: int32(button)}); err != nil {
 		return err
 	}
 	if down {
@@ -250,7 +259,9 @@ func (s *Session) mouse(button int, down bool) error {
 
 // Wheel sends a vertical wheel delta in Windows 1/120-notch units.
 func (s *Session) Wheel(delta int) error {
-	return s.send(proto.Input{Kind: proto.KindWheel, Arg: int32(delta)})
+	s.inputMu.Lock()
+	defer s.inputMu.Unlock()
+	return s.client.SendInput(proto.Input{Kind: proto.KindWheel, X: s.mouseX, Y: s.mouseY, Arg: int32(delta)})
 }
 
 // KeyDown and KeyUp accept a Windows virtual-key code. Values 0x100..0x1ff
@@ -293,12 +304,6 @@ func (s *Session) Text(text string) error {
 		return err
 	}
 	return nil
-}
-
-func (s *Session) send(in proto.Input) error {
-	s.inputMu.Lock()
-	defer s.inputMu.Unlock()
-	return s.client.SendInput(in)
 }
 
 func (s *Session) deliverFrame(frame *tile.Frame, rects []tile.Rect) {

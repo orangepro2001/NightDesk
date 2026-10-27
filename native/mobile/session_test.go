@@ -63,6 +63,17 @@ func (i *testInjector) textCount() int {
 	return len(i.texts)
 }
 
+func (i *testInjector) input(kind byte) (proto.Input, bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	for _, in := range i.inputs {
+		if in.Kind == kind {
+			return in, true
+		}
+	}
+	return proto.Input{}, false
+}
+
 type tileEvent struct {
 	x, y, w, h int
 	pix        []byte
@@ -316,6 +327,15 @@ func TestSessionPairsStreamsAndInjectsInput(t *testing.T) {
 	if inj.textCount() != 1 {
 		t.Fatalf("text injections = %d", inj.textCount())
 	}
+	for _, kind := range []byte{proto.KindMouseDown, proto.KindMouseUp, proto.KindWheel} {
+		in, ok := inj.input(kind)
+		if !ok {
+			t.Fatalf("input kind %d not observed", kind)
+		}
+		if in.X != 10 || in.Y != 20 {
+			t.Fatalf("input kind %d coordinates = (%d,%d), want (10,20)", kind, in.X, in.Y)
+		}
+	}
 }
 
 func TestSessionReleasesHeldInput(t *testing.T) {
@@ -334,6 +354,9 @@ func TestSessionReleasesHeldInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := s.Move(23, 34); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.MouseDown(1); err != nil {
 		t.Fatal(err)
 	}
@@ -346,11 +369,17 @@ func TestSessionReleasesHeldInput(t *testing.T) {
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		if inj.count(proto.KindMouseUp) == 1 && inj.count(proto.KindKeyUp) == 1 {
-			return
+			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("held inputs not released: mouseUp=%d keyUp=%d", inj.count(proto.KindMouseUp), inj.count(proto.KindKeyUp))
+	if inj.count(proto.KindMouseUp) != 1 || inj.count(proto.KindKeyUp) != 1 {
+		t.Fatalf("held inputs not released: mouseUp=%d keyUp=%d", inj.count(proto.KindMouseUp), inj.count(proto.KindKeyUp))
+	}
+	in, ok := inj.input(proto.KindMouseUp)
+	if !ok || in.X != 23 || in.Y != 34 {
+		t.Fatalf("released mouse coordinates = (%d,%d), want (23,34)", in.X, in.Y)
+	}
 }
 
 func TestSessionRejectsWrongHostFingerprint(t *testing.T) {
