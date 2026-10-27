@@ -2,8 +2,17 @@
 
 更新时间：2026-10-27（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前实现：Windows 1.6.2 / nx-host 0.2.1 / Android 1.3.2；本轮提交 `f4c95c5` 已推送到 `origin/main`
-最新阶段交接：`docs\20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`
+当前实现：Windows 1.6.3 / nx-host 0.2.1 / Android 1.3.3；侧栏实现提交 `e75618d` 已推送到 `origin/main`
+最新阶段交接：`docs\20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md`
+
+## 最新阶段：NX 远控侧栏与被控端物理光标闪烁复核（2026-10-27）
+
+- Windows 1.6.3 / 10603 与 Android 1.3.3 / code 12 已发布；更新源 healthz=`ok android=ok windows=ok`，两份 HTTPS 下载 HEAD 均为 200，长度分别为 85,184,688 和 55,076,236 字节，与 manifest 匹配。
+- NX viewer 采用画面全屏 + 小型边缘菜单入口 + 按需侧栏，移除常驻上下控制条。Android 支持硬件键盘 F1 切菜单、F2 呼出手机键盘、Esc 收起；Windows F1 是本地侧栏快捷键，菜单中另设“发送 F1 到远端”。进入/离开菜单释放远端按键和鼠标状态。
+- 验证：Windows 215 项断言通过，Release 构建 0 warnings / 0 errors；Android 36 项 JVM、6 项仪器测试及 Release/Debug/AndroidTest 构建通过，lint 0 errors / 23 warnings。AI emulator 最终安装 `versionCode=12`。
+- 物理屏幕鼠标闪烁：静态追踪确认 `DrawIconEx` 的目标为捕获用离屏 memory DC；输入端 `SendInput` 会移动被控 Windows 的实际指针，因此真实光标移动是预期行为。NX 路径未发现显式 `ShowCursor`、`SetCursor` 或 `ClipCursor` 调用。
+- 以上只能排除已检查代码路径中的显式可见性切换，**不能确认用户报告的物理屏幕闪烁根因，也不能据源码宣布问题已复现或已修复**。依用户选择保持现有策略；等待隔离 Windows 主机实机复现后再决定是否改动。未在生产桌面执行真实抓屏或 SendInput。
+- 版本哈希、部署/恢复命令、更新清单备份、复现清单见本文件顶部的最新 timestamped handoff。
 
 ## 最新阶段：NX 颜色修复与双端版本分发（2026-10-27）
 
@@ -81,7 +90,7 @@
 - Windows manifest：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/api/v1/windows-update`
 - 最新 APK：`https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk`
 - 更新清单：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-update`
-- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=11`
+- 版本下载：`https://tony-ai-pc-1.tail9f7f1f.ts.net/api/v1/android-apk?versionCode=12`
 - 桌面控制：`https://minipc-xoh4t.tail9f7f1f.ts.net/`
 
 未启用 Funnel；访问边界由 tailnet ACL 控制。
@@ -260,27 +269,27 @@ $dotnet = 'C:\Users\pixel\scoop\apps\dotnet-sdk\10.0.402\dotnet.exe'
 ### Android / AI
 
 - Windows 不安装 Android SDK、Gradle、adb、模拟器。
-- 最新 Android 源码与构建目录：`AI:/home/tony/dev/nightdesk-android-1.3.0`；旧 `stage5` 目录仅为历史验证快照，不用于本阶段恢复。
+- 最新 Android 源码与构建目录：`AI:/home/tony/dev/nightdesk-android-ui-20261027/android`；旧 `stage5` 与 `nightdesk-android-1.3.0` 目录均为历史验证快照，不用于本阶段恢复。
 - 构建/测试只在 tmux 会话 `nightdesk-build`、`nightdesk-emulator`。
 - **`main` tmux 会话属于其它工作，禁止读写。**
 - 非交互 SSH 的 PATH 可能没有 adb；使用 `/home/tony/Android/Sdk/platform-tools/adb`。
 - 本机无 `/dev/kvm`，AVD 为软件渲染。
 
 ```bash
-# Android 1.3.0 release APK（使用隔离的本阶段源码目录）
-NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-1.3.0 \
-bash /home/tony/dev/nightdesk-android-1.3.0/scripts/build-ai.sh \
-  -q -PnightdeskVersionCode=9 -PnightdeskVersionName=1.3.0
+# Android 1.3.3 release APK（在 SSH 主机 AI 的本阶段目录）
+NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-ui-20261027/android \
+bash /home/tony/dev/nightdesk-android-ui-20261027/android/scripts/build-ai.sh \
+  -q -PnightdeskVersionCode=12 -PnightdeskVersionName=1.3.3
 
 # AndroidTest APK
-NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-1.3.0 \
-bash /home/tony/dev/nightdesk-android-1.3.0/scripts/build-androidtest.sh -q \
-  -PnightdeskVersionCode=9 -PnightdeskVersionName=1.3.0
+NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-ui-20261027/android \
+bash /home/tony/dev/nightdesk-android-ui-20261027/android/scripts/build-androidtest.sh -q \
+  -PnightdeskVersionCode=12 -PnightdeskVersionName=1.3.3
 
 ## 完整仪器测试（含远控 UI 和独立更新源下载校验）
-NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-1.3.0 \
+NIGHTDESK_ANDROID_DIR=/home/tony/dev/nightdesk-android-ui-20261027/android \
 NIGHTDESK_UPDATE_ORIGIN=https://tony-ai-pc-1.tail9f7f1f.ts.net \
-  bash /home/tony/dev/nightdesk-android-1.3.0/scripts/run-instrumented.sh
+  bash /home/tony/dev/nightdesk-android-ui-20261027/android/scripts/run-instrumented.sh
 ```
 
 ### 签名

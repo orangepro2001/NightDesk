@@ -176,3 +176,31 @@
 - Go/AI：`go test ./...`、`go vet ./...`、Windows amd64 cross-vet/build 通过；未改 Go 源码。
 - 已发布 Windows 1.6.2/code10602 和 Android 1.3.2/code11；HTTPS manifest、HEAD 长度与完整 GET SHA-256 一致，healthz=`ok android=ok windows=ok`。Release hashes 与具体 backup paths 记录于 `docs/20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`。
 - 未做真实 Android 手机、Windows 实时 GDI/SendInput、DPI/HDR/ICC、生产桌面升级验收；无生产进程重启或显示拓扑更改。
+
+## NX remote-control unobstructed controls (2026-10-27)
+
+- User reports persistent translucent overlays at the top and bottom of the NX remote screen obstructing both visibility and interaction. Wants a mature remote-support pattern with a side menu and keyboard access.
+- Verified design references: RustDesk documents `collapse-toolbar` for starting a session with its toolbar collapsed; Microsoft Remote Desktop for Android documents an in-session connection bar, expandable command/selection bars, and a keyboard control that shows/hides the touch keyboard. Apply the minimal shared pattern: collapsed edge handle and on-demand side panel, not permanent top/bottom bands.
+- Scope: update both Android and Windows viewers; preserve remote content sizing/gesture semantics, keep keyboard/special keys and explicit release-all one tap away.
+
+## Confirmed code-path evidence: controlled-host cursor
+
+- Windows `native/internal/capture/capture_windows.go` performs `BitBlt` into an off-screen memory DC, calls `GetCursorInfo` and `DrawIconEx` on that memory DC, then copies the DIB to the network frame. It does not draw on the physical desktop.
+- Windows `native/internal/inject/inject_windows.go` converts every absolute remote pointer input into Win32 `SendInput`; this intentionally moves the interactive desktop cursor, so the physical host pointer can move while controlled.
+- Repository-wide search found no NX `ShowCursor`, `SetCursor`, or `ClipCursor` calls. Static code therefore supports expected physical cursor movement, but cannot establish whether the reported visible blinking is an actual visibility toggle, capture artifact, monitor/compositor issue, or a particular Windows cursor theme. Do not add global cursor suppression without a reproducible isolated-host test and explicit restoration design.
+
+## UX design reference
+
+- RustDesk official advanced settings describe `collapse-toolbar` as collapsing the remote toolbar after connecting: https://rustdesk.com/docs/en/self-host/client-configuration/advanced-settings/ (section `collapse-toolbar`).
+- Microsoft Remote Desktop for Android documents the connection bar, additional-options command/selection bars, and an icon to show/hide the keyboard: https://learn.microsoft.com/en-us/previous-versions/remote-desktop-client/remote-desktop-android ("Start a Remote Desktop connection", "Use the command bar").
+- Implementation direction: full-bleed remote image, a small edge handle, and an on-demand vertical control panel; keyboard input/special keys and release-all stay one tap away. Desktop viewer gets equivalent collapsible controls and a local shortcut.
+
+## NX sidebar release and physical cursor status (2026-10-27)
+
+- Implemented and pushed in `e75618d`: Android/Windows viewer now keep only an edge handle over the remote image while idle; on-demand side panel contains session actions. Android local keys are F1 (menu), F2 (phone keyboard), Esc (collapse); Windows F1 remains local and remote F1 has a separate explicit action.
+- Sidebar visibility changes release all remote mouse/key state. Android `RemoteControlUiInstrumentedTest` covers idle handle, discoverability, expanded menu, available controls and release operation; Windows assertions cover removal of permanent bands and menu/release actions.
+- User's selected policy is to keep existing system cursor behavior and change it only after an isolated physical Windows reproduction.
+- Confirmed local source: `DrawIconEx` receives the capture `memDC`; it composites into the off-screen frame. `SendInput` is the mechanism that moves the controlled Windows session's actual pointer. No NX capture/injection code uses `ShowCursor`, `SetCursor`, or `ClipCursor`.
+- Therefore the source trace confirms expected physical pointer movement but does not confirm a blink/toggle bug or its root cause. Neither the production desktop nor another isolated Windows host was used for real GDI/SendInput this round.
+- Current artifacts: Windows 1.6.3/10603 ZIP SHA-256 `3214419d6ed87d95111a1c1c2e719307b8cc046ad624ceeebd09b0310243ebc7`; Android 1.3.3/code12 APK SHA-256 `61f967a0d53d2fdbcf6fde6659404216cb804db847ff801576e22c2da9108e9f`. Both published and HTTPS HEAD length-checked; emulator reports code12.
+- Detailed files and manual repro checklist: `docs/20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md`.

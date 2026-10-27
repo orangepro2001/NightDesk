@@ -215,3 +215,30 @@ Release note policy: this is a maintenance re-release of the current feature set
 ## Next Step
 
 - Completed and pushed as `f4c95c5` (`fix: correct NX remote color rendering`); worktree matches `origin/main`.
+
+## Current feature plan: NX remote-control unobstructed controls
+
+1. [done] Trace viewer layouts/input routing and inspect host cursor capture/injection semantics.
+2. [done] Replace fixed top/bottom bands with compact collapsible controls on both Android and Windows.
+3. [done] Add keyboard access/local shortcut and ensure focus/menu actions release remote input.
+4. [done] Add UI/input tests; build Android on AI and Windows locally; inspect emulator/layout bounds.
+5. [done] Record cursor evidence and physical test boundary in timestamped recovery handoff; commit/push and publish verified versions.
+
+### Cursor investigation (2026-10-27)
+
+- `BitBlt` → `GetCursorInfo`/`DrawIconEx` → frame copy all occur in the off-screen capture DC; they do not touch physical monitor pixels.
+- `SendInput` applies remote cursor coordinates to the interactive Windows desktop, therefore physically visible cursor movement is expected. No code hides/shows or resets the cursor explicitly.
+- User selected to keep current behavior until a physical test. Actual blinking vs ordinary rapid pointer updates cannot be determined from source; isolate/reproduce before considering suppression, because suppressing the system pointer risks hiding it from the remote frame and local users.
+- Windows 1.6.3 and Android 1.3.3 are published; release manifests, artifact hashes and backup paths are in `docs/20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md`.
+- Windows verification: 215 assertions; Release build 0 warnings/errors; no display state changed. Android AI: 36 JVM, six regular instrumentation tests, lint 0 errors/23 warnings; emulator reports code 12. Dual HTTPS HEAD and local/feed hashes match; update service healthy.
+- Source commit `e75618d` was pushed before this documentation sync. Physical Windows cursor blinking remains an explicit open manual acceptance item, not a claimed fix.
+
+## Next Step
+
+- After this documentation sync is pushed, reproduce the physical cursor behavior only on an isolated Windows test host with an active physical monitor; do not change cursor visibility policy until the observation is attributable.
+
+## Build errors
+
+| Error | Attempt | Resolution |
+|---|---:|---|
+| Android Kotlin compile did not resolve `BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE` from `WindowInsetsCompat` | 1 | Used the same AndroidX constant from `WindowInsetsControllerCompat`; copied the corrected activity to the isolated AI build and rerun. |

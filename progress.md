@@ -92,3 +92,27 @@
 - 备份：Android manifest `/home/tony/dev/nightdesk-update-feed/manifest.json.pre-nx-colors-1.3.2-20261027-1625`；Windows manifest `/home/tony/dev/nightdesk-update-feed/windows-manifest.json.bak-20261027-162723`。旧 immutable artifacts 保留。
 - 生产桌面未替换、重启或运行真实 GDI/SendInput；HDR/ICC/多 DPI、真机/双机 tailnet 仍需现场验收。详细复建见 `docs/20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`。
 - 本地代码、版本、README、handoff 与 acceptance 文件已更新；提交 `f4c95c5` 已推送到 `origin/main`。补充记录后应保持工作区干净。
+
+## NX remote-control unobstructed controls — 2026-10-27
+
+- Started after user clarified the previous NX image colors are correct; remaining request is usability: persistent top/bottom translucent overlays impede viewing/input; asks for balanced mature remote-control interaction with side menu and keyboard invocation.
+- Upstream design references reviewed: Microsoft Remote Desktop connection bar/command surface and keyboard action; AnyDesk fullscreen edge toolbar; RustDesk collapsed session toolbar option.
+- No implementation or release performed yet. Next: inspect live Android and WPF viewer layouts and their event routing, then select the smallest shared interaction change.
+
+## NX remote controls and physical cursor investigation — 2026-10-27
+
+- Read existing Android RemoteActivity/RemoteTouchControls: fixed translucent full-width header and footer occupy the viewer, with keyboard, special keys, right-click, and release split across them. Desktop NxViewerWindow reserves fixed header/footer rows.
+- Confirmed mouse safety behavior already releases input on focus loss, background, disconnect, and close. The new menu toggle also calls release-all so collapsing cannot preserve a held drag/key.
+- Cursor code trace: Windows sends remote absolute pointer actions through SendInput, moving the actual physical interactive desktop cursor. Cursor image compositing via GetCursorInfo/DrawIconEx targets the capture memory DC only. No NX path calls ShowCursor/SetCursor/ClipCursor, so flashing cannot be confirmed from source alone; physical repro is required before changing global pointer visibility.
+- RustDesk official docs describe a post-connect collapsed toolbar (`collapse-toolbar`); using the analogous small edge handle + on-demand sidebar pattern.
+- Next: refactor Android viewer overlays, then WPF viewer, test the layout/input release shortcut, build Android on AI and Windows locally. Do not touch production mouse/display state.
+
+- AI first build error: immersive behavior constant was imported from the wrong AndroidX class. Corrected to `WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE`; no tests passed on the failed build, and the corrected source has not yet been rebuilt.
+
+### NX remote-control sidebar / physical cursor review — completed 2026-10-27
+
+- Resumed from source commit `e75618d` already pushed to `origin/main`; verified the changed viewer code and user-selected cursor decision: retain current physical cursor behavior until reproduced on isolated hardware.
+- Re-ran Windows Release assertions: 215 passed, `No display state changed.` Re-ran `dotnet build src/NightDesk/NightDesk.csproj -c Release --no-restore`: 0 warnings/errors.
+- On AI, installed the release + AndroidTest APK into `emulator-5580` and reran the isolated instrumentation script. HostStore 3, MainUI 1, RemoteControl UI 1, UpdateFlow 1 all passed; exit code 0. Emulator reports `versionCode=12`, `versionName=1.3.3`. JVM 36 and lint 0 errors / 23 warnings were already recorded by the completed build.
+- Verified local Android APK and Windows ZIP SHA-256 equal the AI feed immutable artifacts and current manifest values. HTTPS latest HEAD is 200 on both; feed service active/healthy.
+- Wrote timestamped detailed handoff and synchronized README, HANDOFF, ACCEPTANCE, plan/progress/findings. Remaining: commit/push the documentation sync, verify clean/up-to-date worktree. Physical cursor flicker itself is not reproduced or claimed fixed.

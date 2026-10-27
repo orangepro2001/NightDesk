@@ -2,43 +2,43 @@
 
 更新日期：2026-10-27（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：修复 NX Android BGRA/RGBA 通道错位与 WPF 对 GDI 未定义 alpha 的误解释，构建并分发 Windows 1.6.2 / Android 1.3.2；模拟器通过颜色回归和线上更新验证。
+本轮范围：NX viewer 全屏/可折叠侧栏和快捷键；追踪被控端物理鼠标光标闪烁路径；发布 Windows 1.6.3 / Android 1.3.3。历史颜色修复记录保留在第 2.3 节。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
-| 最新实现提交 | `f4c95c5`（已推送 `origin/main`） |
-| Windows | 1.6.2 / 10602，AI ZIP 已发布；生产桌面未替换 |
-| Windows ZIP | 85184082 字节，SHA-256 `9856a7c03b9dff7b5ed89fbf106a597add1ec983a8f1b43db340fbfd13694717` |
-| Windows EXE | 201922308 字节，SHA-256 `cc986ac254941ed6029a46d5ae65978d5233e82904471e1145670edcf067403f` |
+| 最新实现提交 | `e75618d`（已推送 `origin/main`） |
+| Windows | 1.6.3 / 10603，AI ZIP 已发布；生产桌面未替换 |
+| Windows ZIP | 85184688 字节，SHA-256 `3214419d6ed87d95111a1c1c2e719307b8cc046ad624ceeebd09b0310243ebc7` |
+| Windows EXE | 201926404 字节，SHA-256 `aa60d46e87fee8e057c7b8172340642a1959425404f4e873c8c7811ed9ecd526` |
 | nx-host | 0.2.1，7940608 字节，SHA-256 `88233ba806d9a7ebe4bda5c66a2e4c61e0d9dc9b43c48787170ca68e6087b9f0` |
-| Android | 1.3.2 / 11，55076236 字节，SHA-256 `1f5fc894074d468f92b6f19f0fbea64be1f7c55c1df696544690d630a0206118` |
+| Android | 1.3.3 / 12，55076236 字节，SHA-256 `61f967a0d53d2fdbcf6fde6659404216cb804db847ff801576e22c2da9108e9f` |
 | Android 证书 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
 | 服务 | active / enabled；healthz = ok android=ok windows=ok |
 
 [双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk) · [Windows ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip) · [Android APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 
-完整恢复说明见 `C:\dev\NightDesk\docs\20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md`。
+完整恢复说明见 `C:\dev\NightDesk\docs\20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md`。
 
 ## 2. 自动化结果（本轮已复核）
 
 | 检查 | 结果 | 边界 |
 |---|---|---|
-| Windows Release | 211 项通过；0 warnings / 0 errors | 无显示状态改变；含 NX 像素格式回归 |
-| WPF 布局 | 980/1180 DIP × 五页通过；两组三字段独立列 | 纯 XAML，无应用服务 |
-| Windows 更新下载 | `DesktopUpdateService` 从 live HTTPS feed 下载 1.6.2，验证清单、SHA-256 并 stage 双 EXE | 隔离临时缓存，没有触发安装或替换生产程序 |
+| Windows Release | 215 项通过；0 warnings / 0 errors | 无显示状态改变；含 NX sidebar、光标路径与像素格式回归 |
+| WPF 布局 | 五个设置页布局和 viewer 可折叠侧栏断言通过 | viewer 侧栏代码检查；未执行真实远控输入 |
+| Windows 更新下载 | `DesktopUpdateService` 校验 1.6.3 manifest、SHA-256 并 stage 双 EXE | 隔离临时缓存，没有触发安装或替换生产程序 |
 | 安装 helper | 等待测试进程、替换双合成文件、保留备份、重启合成 WinExe 通过 | 临时目录，不是真实升级 |
 | Feed | 5 Python tests 通过 | Android 兼容、Windows 路由、前缀代理、双平台页面 |
 | Android JVM | 36 项通过 | CoreTest 10 + NxConnectionTest 10 + NxTest 7 + RemoteGestureTest 9 |
 | Android lint/build | 0 errors / 23 warnings；release/debug/AndroidTest 构建通过 | AI 主机 |
-| Android 仪器 | 6 项标准 + 1 项颜色回归通过 | HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1；色条单测另跑 |
+| Android 仪器 | 当前 6 项通过；独立颜色回归在前序版本通过 | HostStore 3 + MainUi 1 + RemoteControlUI 1 + UpdateFlow 1 |
 | Android 颜色回归 | AI emulator 上红/绿/蓝/非对称 RGB 全部精确匹配 | 输入包含 alpha=0 与 0x7f，不经过 Windows GDI |
 | Android 手势 | 点按/移动/长按拖动/双指滚动/取消/强制释放覆盖通过 | 模拟器与 JVM；非真实 Windows 输入验收 |
 | Go 鼠标坐标回归 | MouseDown/MouseUp/Wheel/ReleaseAll 保留最后鼠标坐标；旧实现的回归测试先失败、修复后通过 | 远程集成测试使用假注入器，不调用真实 SendInput |
 | Android Go AAR | 已从修复后的 gomobile 核心重建，SHA-256 `bfa20670742caace05c940fd68fc790b3bf49b6a431d8f2268712936d08f22ad` | AI 主机交叉构建 |
-| Android 更新 | 模拟器从 code 10 经 HTTPS 下载、大小/SHA-256/签名校验并安装 code 11 | 非物理手机远控验收 |
-| 线上清单/HEAD/GET | Windows 1.6.2 / Android 1.3.2；HTTP 200，长度和完整下载哈希一致 | 更新源发布，不代表真实远控验收 |
+| Android 更新 | code 12 emulator 的线上更新流、APK 校验和安装通过；最终包信息为 1.3.3/code 12 | 非物理手机远控验收 |
+| 线上清单/HEAD | Windows 1.6.3 / Android 1.3.3；HTTP 200，Content-Length 与清单一致 | 更新源发布，不代表真实远控验收 |
 | VDD 载荷 | 原有大小/签名/提取/篡改拒绝断言通过 | 不执行真实驱动安装 |
 
 Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名。生产升级、真实 GDI/SendInput、DPI/UAC、物理 Android 和双机 tailnet 仍待人工验收。
@@ -69,6 +69,16 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - Android 1.3.2/code 11 与 Windows 1.6.2/10602 已发布。manifest、HTTPS HEAD 长度、完整 GET 大小与 SHA-256 均匹配，历史不可变 APK/ZIP 保留。
 - 更新链路验证：Windows updater 只在 temp cache staging 双 EXE，未调用安装 helper；Android emulator 从 code 10 运行 UpdateFlow 下载并校验，再从 HTTPS 安装实际 APK 至 code 11。不是生产程序更新。
 - Android 真机画面、Windows 实时 GDI alpha/色彩、HDR/ICC/广色域、物理双机体验均未在本轮验收；不能据模拟器/测试帧宣称所有硬件场景已完全验收。
+
+### 2.4 NX 远控侧栏与被控端物理指针闪烁复核（Windows 1.6.3 / Android 1.3.3）
+
+- Android/Windows viewer 去除常驻上下控制区，保持画面全屏；空闲时仅保留窄边缘入口，打开后显示纵向侧栏。Android F1 开关侧栏、F2 呼出软键盘、Esc 收起；Windows F1 是本地快捷键，远端 F1 通过单独菜单动作发送，避免快捷键被远端截获。
+- 显式打开或收起侧栏时调用全量释放，避免拖动/按键在菜单切换时残留；关闭后恢复画面触摸/鼠标输入。Android 侧栏 UI 仪器回归覆盖窄入口、可发现性、侧栏操作和释放按钮。
+- Windows：215 assertions 通过；`dotnet build src/NightDesk/NightDesk.csproj -c Release --no-restore`，0 warnings / 0 errors。测试输出明确 `No display state changed.`
+- Android AI：36 JVM tests；Release/Debug/AndroidTest 构建；lint 0 errors / 23 warnings；`HostStore` 3、`MainUi` 1、`RemoteControlUi` 1、`UpdateFlow` 1 仪器测试通过。更新流程在已安装版本等于线上版本时验证“无更新”；emulator 最终安装版本为 code 12 / 1.3.3。
+- 双平台发布后复核：Windows 与 Android manifest 可读、HTTPS HEAD 200 且长度匹配；本地包与 AI feed 的 SHA-256 一致；服务 `active`，healthz=`ok android=ok windows=ok`。未触碰生产程序。
+- 被控端物理光标：`Screen.Grab` 的 `BitBlt`、`GetCursorInfo`、`GetIconInfo`、`DrawIconEx` 与 DIB 复制均走内存 DC/离屏帧；注入路径使用 `SendInput`，会在实际 Windows 会话中移动物理系统指针。NX 源码未发现 `ShowCursor`、`SetCursor`、`ClipCursor` 调用。
+- 结论边界：以上只能描述代码路径。**物理显示器上的闪烁未在隔离 Windows 测试机上复现，原因未知，未实施光标隐藏或其它光标策略改动**。需先在隔离主机与 Android 真机/Windows viewer 端到端观察，记录输入频率、显示器/缩放/光标主题，并区分系统指针闪烁、远端帧更新和合成器现象。禁止为验证在当前生产桌面运行真实 `SendInput` 或 GDI 抓屏。
 
 ## 3. go-nx 远程控制（阶段 1-7）
 
@@ -240,7 +250,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 
 ### G. NX 远程控制端到端（需独立测试机与真机）
 
-- [ ] 在独立的 Windows 11 / Server 2022 测试机部署同目录的 `NightDesk.exe` 与 `nx-host.exe`（1.6.0），确认 sidecar 可启动且有日志。
+- [ ] 在独立的 Windows 11 / Server 2022 测试机部署同目录的 `NightDesk.exe` 与 `nx-host.exe`（1.6.3），确认 sidecar 可启动且有日志。
 - [ ] 桌面“扫描二维码绑定”生成 NX 配对码，Android 真机通过 tailnet 扫码。
 - [ ] 确认首帧、tile 差分、滚动、点击、右键、组合键和 Unicode 文本可用。
 - [ ] 验证错误配对码、二维码过期、证书指纹变化、主机锁定、另一台设备接管和断网重连。
@@ -248,6 +258,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - [ ] 验证 sidecar 异常退出后 WPF 清除 running / ready 状态，并可重新启动。
 - [ ] 记录首帧时间、稳态带宽、CPU、内存和输入回执延迟。
 - [ ] 在第二台 Windows 11 NightDesk 第 06 区输入目标地址、配对码和主机指纹，确认控制窗口显示首帧。
+- [ ] 在隔离主机分别观察未连接、已连接但无输入、移动/点击/松开/停止输入期间的物理系统指针；记录它是否闪烁及是否与输入频率相关。未经复现和归因，不隐藏或抑制全局系统指针。
 - [ ] 验证鼠标移动/左键/右键/中键/滚轮、Ctrl/Alt 组合键和中文 Unicode 输入。
 - [ ] 关闭控制窗口、切走焦点和强制断网后，确认目标端没有残留按键或鼠标按钮。
 - [ ] 重启控制端并留空配对码，确认固定主机指纹和客户端身份仍可连接；更换目标证书时必须失败关闭。
@@ -267,9 +278,10 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 
 ## 9. 交付边界
 
-- Android 1.3.0（versionCode 9）已在 1.2.0 多主机、扫码绑定、永久设备令牌、独立更新源和 go-nx 远控基础上，加入不误触框选的点按/移动/长按拖动手势、双指滚动和常驻全量释放操作；36 项 JVM、6 项仪器测试、构建、签名与线上更新验证通过。
+- Android 1.3.3 / versionCode 12 和 Windows 1.6.3 / code 10603 已发布。NX viewer 使用画面全屏与可折叠侧栏；Windows 215 项测试、Android 36 项 JVM 和 6 项当前仪器测试、构建及线上 artifact 核验通过。物理光标闪烁未复现，保持原行为，真实远控仍待隔离设备验收。
+- Android 1.3.0（versionCode 9）是历史版本：当时加入了不误触框选的点按/移动/长按拖动、双指滚动和常驻全量释放；历史验证通过不替代当前 1.3.3 的实机验收。
 - Android 1.3.0 已发布到 AI 更新源，APK 大小、SHA-256、签名及模拟器从 1.2.0 更新的流程已验证；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机手势和 tailnet UDP/QUIC **未验收**。
-- Windows 1.6.1 / 10601 与 nx-host 0.2.1 已发布。捕获端将 Windows 系统指针绘入每帧，使既有移动输入位置可见；真实桌面抓屏像素、SendInput、DPI/UAC 和真机远控仍未验收。`Desktop\NightDesk.exe` 仍运行现有版本，本轮未替换；部署时必须将 ZIP 中两个 EXE 放在同一目录。
+- Windows 1.6.1 的光标合成改动已包含在当前 Windows 1.6.3 包中：捕获端将 Windows 系统指针绘入每帧，使既有移动输入位置可见。真实桌面抓屏像素、SendInput、DPI/UAC 和真机远控仍未验收；部署时必须将 ZIP 中两个 EXE 放在同一目录。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
 - go-nx 屏幕远控是经配对和证书固定保护的独立数据面，不是通用远程桌面，不等同于 Sunshine/Parsec 视频串流。
 - 应用不提供任意 shell、文件访问或通用桌面控制接口。
