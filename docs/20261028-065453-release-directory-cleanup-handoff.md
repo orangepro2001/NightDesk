@@ -92,7 +92,7 @@ AI 更新源现在只保留正式分发文件：
 2. 旧版本 URL 现在返回 404。历史交接文档中的旧路径是历史记录，不代表文件仍存在。
 3. `manifest.json.pre-*` / `windows-manifest.json.bak-*` 只保存历史清单元数据，**不包含已删除的 APK/ZIP**；仅恢复清单不能恢复旧二进制。
 4. 如需回滚，必须从源码重新构建，或从外部备份取回完整 APK/ZIP，先校验签名、大小和 SHA-256，再使用现有发布脚本以临时文件原子切换清单。不要把旧 manifest 单独切回生产源。
-5. 后续发布仍须递增 Android `versionCode` 与 Windows `version` / `versionCode`，保留当前签名证书，并在发布完成后按本文件的清单、SHA-256、healthz、HTTPS HEAD/GET 流程复核。
+5. 后续发布仍须递增 Android `versionCode` 与 Windows `version` / `versionCode`，保留当前签名证书，并在发布完成后按本文件的清单、SHA-256、healthz、HTTPS HEAD/GET 流程复核。现有发布脚本不会自动删除旧包；新版本验证通过后需再次按正式版本文件名清理旧分发，避免同时保留多版。
 
 ## 5. 现场边界
 

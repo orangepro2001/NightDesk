@@ -281,7 +281,7 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 
 - Android 1.3.3 / versionCode 12 和 Windows 1.6.3 / code 10603 已发布。NX viewer 使用画面全屏与可折叠侧栏；Windows 215 项测试、Android 36 项 JVM 和 6 项当前仪器测试、构建及线上 artifact 核验通过。物理光标闪烁未复现，保持原行为，真实远控仍待隔离设备验收。
 - Android 1.3.0（versionCode 9）是历史版本：当时加入了不误触框选的点按/移动/长按拖动、双指滚动和常驻全量释放；历史验证通过不替代当前 1.3.3 的实机验收。
-- Android 1.3.0 已发布到 AI 更新源，APK 大小、SHA-256、签名及模拟器从 1.2.0 更新的流程已验证；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机手势和 tailnet UDP/QUIC **未验收**。
+- Android 1.3.0 曾发布到 AI 更新源；对应 APK 大小、SHA-256、签名及模拟器从 1.2.0 更新的流程当时已验证。旧二进制定向 URL 已清理；真实 Windows 抓屏、SendInput、DPI/UAC、Android 真机手势和 tailnet UDP/QUIC **未验收**。
 - 2026-10-28 已完成本机和 AI 发行目录清理：正式分发只保留 Windows 1.6.3 与 Android 1.3.3；旧二进制定向 URL 返回 404，回滚需重新取得完整包，不能只恢复 manifest。
 - Windows 1.6.1 的光标合成改动已包含在当前 Windows 1.6.3 包中：捕获端将 Windows 系统指针绘入每帧，使既有移动输入位置可见。真实桌面抓屏像素、SendInput、DPI/UAC 和真机远控仍未验收；部署时必须将 ZIP 中两个 EXE 放在同一目录。
 - 真正“缺少 VDD 时自动安装”的端到端路径必须在干净 Windows 环境验收；本机只验证了载荷、校验、提取和已安装路径。
