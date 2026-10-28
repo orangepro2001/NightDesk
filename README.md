@@ -1,5 +1,7 @@
 # NightDesk · 屏幕与远程工作台
 
+[![verify](https://github.com/orangepro2001/NightDesk/actions/workflows/verify.yml/badge.svg)](https://github.com/orangepro2001/NightDesk/actions/workflows/verify.yml)
+
 原生 Windows WPF/Win32 工作台 + Kotlin Android 客户端，不使用 Electron。提供显示拓扑切换、Parsec VDD 管理、Tailscale HTTPS 管理、go-nx 低带宽无损 tile 远控和双平台更新分发。
 
 ## 当前版本（2026-10-28 KST）

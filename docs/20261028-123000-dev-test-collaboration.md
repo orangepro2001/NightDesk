@@ -99,6 +99,10 @@ ssh AI 'git -C /home/tony/dev/NightDesk log -1 --format="%H %s"'
 2. 按 `global.json` 安装 .NET SDK `10.0.402`。
 3. `dotnet build tests/NightDesk.Tests -c Release -warnaserror`——**警告即错误**，对应验收要求的 “0 warnings / 0 errors”。
 4. `dotnet run --project tests/NightDesk.Tests -c Release --no-build`——跑全部断言（1.6.4 阶段 216 项）。日志里每条 `PASS:` 和最后的 `N tests passed.` 就是证据。
+
+   2026-10-28 在本仓库首次实跑的结果：`216 tests passed. No display state changed.`，
+   紧接的发布步骤打印 `ProductVersion: 1.6.4+<提交号>` 与 `nx-host version: nx-host 0.2.2`。
+   **整个 Windows 作业约 84 秒**。
 5. `tools/publish-windows.ps1 -Dotnet dotnet`——自包含发布，并**真正执行 `nx-host.exe -version`**（这是 Linux 上做不到的 smoke check）。
 6. `tools/package-windows.ps1`——按 csproj 的 `<Version>` 自动算 versionCode，打出更新 ZIP。
 7. 上传 artifact `nightdesk-windows-<版本>`。
@@ -107,6 +111,9 @@ ssh AI 'git -C /home/tony/dev/NightDesk log -1 --format="%H %s"'
 
 JDK 17 + Android SDK 35 + Gradle 8.11.1（仓库没有 wrapper），执行
 `testDebugUnitTest lintRelease assembleDebug`，上传单元测试报告与 debug APK。
+
+维护注意：必须用 `android-actions/setup-android@v4`。v3 会执行已被 Google 移除的 legacy
+`sdkmanager tools` 包并在 Gradle 之前失败（2026-10-28 实测踩到）。
 
 **不签名 release APK**：签名密钥留在 AI 主机，可安装的 release APK 由 AI 主机产出（见 §7.4）。
 
@@ -207,6 +214,14 @@ ssh AI 'bash /home/tony/dev/NightDesk/tools/ai/build-windows.sh'
 原理与边界：`EnableWindowsTargeting` 让 Linux 上的 SDK 下载 Windows 目标包并**编译**，但**不能运行**。
 所以这里拿不到 `ProductVersion`、也跑不了 `nx-host.exe -version` 的 smoke check——那两步在 CI 的
 `publish-windows.ps1` 里做。
+
+**产物不等价（重要）**：同一提交下，Linux 交叉编译与 Windows 原生编译得到的 `NightDesk.exe` 不是同一个
+二进制。1.6.4 实测：Linux 交叉 201,924,801 字节，CI/Windows 原生 201,926,404 字节（后者与当时线上发布的
+1.6.4 包内清单完全一致）。两者的 `VS_VERSION_INFO` / `ProductVersion` / `FileVersion` 资源都存在，功能等价，
+但字节不同（嵌入的 PDB 路径与构建元数据不同）；Windows 原生两次构建之间同样字节不同。
+
+所以：**不要跨构建比较哈希或文件大小**。正式发布包一律以 CI（真 Windows）产物为准，manifest 里的
+`size`/`sha256` 必须由该次实际产物重新计算。
 
 ### 7.2 Windows（CI，出正式 artifact）
 
@@ -387,7 +402,7 @@ git -C /mnt/c/dev/NightDesk pull --ff-only
 | Linux 上不能运行 Windows 断言 | AI 主机无法给出 Windows 结论 | CI `windows-latest` 为准；本机兜底 |
 | AI 主机无 KVM / 无 vmx | 开不了 Windows 虚拟机；Android 模拟器只能纯软件 | 仪器测试在 `emulator-5580` 上跑，接受慢 |
 | AI 主机无 `pwsh` | `tools/*.ps1` 不能直接跑 | 打包用 `tools/ai/package_windows.py`；发布脚本是 Python |
-| Android 构建不可字节复现 | 同一提交两次构建 SHA-256 不同（尺寸相同） | 用版本号 + 安装行为判定，不要用哈希比对判断「是否同一版本」 |
+| Android / Windows 构建不可字节复现 | 同一提交两次构建 SHA-256 不同（Android 尺寸也可能相同；Windows EXE 交叉编译与原生编译大小差约 1.6 KB） | 用版本号 + `ProductVersion` + 安装行为判定；发布清单必须由当次产物重算 |
 | gomobile AAR 不可字节复现 | 同 §7.6 | 只在 Go 侧改动后重建，并重跑全部 Android 验证 |
 | `nx-host.exe` / `mobile.aar` 入库 | 二进制与源码可能不同步 | 改 Go 后必须重建并提交，别只改源码 |
 | CI 进不了 tailnet | `-live-update`、私网服务不能上 CI | 放在 AI 主机或本机执行 |
@@ -408,6 +423,16 @@ git -C /mnt/c/dev/NightDesk pull --ff-only
 | `build-ai.sh`（单元 + lint + debug + release） | 1 分 51 秒；46 单元测试通过；lint 0 error / 22 warning |
 | `run-instrumented.sh`（4 类 6 测试） | 全部 OK，含 `UpdateFlowInstrumentedTest` 通过线上更新源校验 |
 | release APK | versionCode 13 / 1.3.4，55,112,556 字节，签名证书 SHA-256 与线上一致 |
+
+### 12.1 GitHub CI 首次实跑（2026-10-28，公开仓库标准 runner）
+
+| 作业 | 结果 |
+|---|---|
+| Windows build, tests and package | **1 分 09 秒**：`-warnaserror` 构建通过、`216 tests passed. No display state changed.`、自包含发布、更新 ZIP、artifact 上传 |
+| Android build, unit tests and lint | **3 分 26 秒**（其中 Gradle 阶段 2 分 46 秒）：单元测试、lint、debug APK |
+| 产物对照 | 线上 1.6.4 的 `NightDesk.exe` 201,926,404 字节 / `47b54a4d…`；CI 本次 201,926,404 字节 / `a0e6898f…`；AI 主机交叉编译 201,924,801 字节 / `57e43825…` |
+
+三份产物功能等价且都带完整版本资源，但字节不同——印证 §7.1 的「产物不等价」。
 
 ## 13. 变更记录
 
