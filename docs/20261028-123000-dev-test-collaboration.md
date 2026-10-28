@@ -467,12 +467,31 @@ git -C /mnt/c/dev/NightDesk pull --ff-only
 |---|---|
 | Windows build, tests and package | **1 分 09 秒**：`-warnaserror` 构建通过、`216 tests passed. No display state changed.`、自包含发布、更新 ZIP、artifact 上传 |
 | Android build, unit tests and lint | **3 分 26 秒**（其中 Gradle 阶段 2 分 46 秒）：单元测试、lint、debug APK |
+| Android instrumented tests (KVM emulator) | **3 分 14 秒**：`/dev/kvm` 为 `crw-rw-rw- 1 root kvm`，模拟器冷启动 **36 秒**，`OK (5 tests)`（`UpdateFlow` 按设计不在 CI 跑） |
 | 产物对照 | 线上 1.6.4 的 `NightDesk.exe` 201,926,404 字节 / `47b54a4d…`；CI 本次 201,926,404 字节 / `a0e6898f…`；AI 主机交叉编译 201,924,801 字节 / `57e43825…` |
 
 三份产物功能等价且都带完整版本资源，但字节不同——印证 §7.1 的「产物不等价」。
+
+### 12.2 AI 主机模拟器停机实测（2026-10-28）
+
+| | 停机前 | 停机后 |
+|---|---:|---:|
+| `free` used | 21 GiB | **14 GiB** |
+| `free` available | 8.9 GiB | **16 GiB** |
+| swap used | 8.0 GiB（只剩 48 MiB 空闲） | 6.5 GiB（1.5 GiB 空闲） |
+| qemu RSS | 9.59 GiB（`-memory 4096`） | — |
+
+那个模拟器进程已连续运行 **1 天 16 小时**（`etime 1-15:51`），期间没有任何测试使用它。停机后立即释放约
+7 GiB 常驻内存与 1.5 GiB swap。
+
+停机之后主机最大的内存占用不是 NightDesk 的：`scope-recall` 的 22 个 Python 进程合计约 **7.7 GiB**。
+如果还需要更多余量，下一个目标在那里，不在这个仓库。
 
 ## 13. 变更记录
 
 - 2026-10-28：建立本指南；AI 主机改为正式克隆 `/home/tony/dev/NightDesk`；新增
   `.github/workflows/verify.yml`、`tools/ai/{sync,build-windows,verify}.sh`、`tools/ai/package_windows.py`；
   `android/scripts/*.sh` 默认目录改指正式克隆。
+- 2026-10-28：仪器测试搬上 GitHub 的 KVM 模拟器（新增 `android-instrumented` 作业）；AI 主机的模拟器改为
+  **按需启停**（`start-emulator.sh` 默认降到 3072 MB / 4 核，新增 `stop-emulator.sh`），并实测释放约 7 GiB
+  常驻内存与 1.5 GiB swap；纯文档提交不再触发 CI（`paths-ignore`）。
