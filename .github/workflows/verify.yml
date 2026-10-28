@@ -213,15 +213,15 @@ jobs:
           api-level: 35
           target: google_apis
           arch: x86_64
+          # 与 AI 主机上的 AVD 保持一致，避免默认 320x640 小屏影响 UI 断言。
+          profile: pixel_5
           disable-animations: true
           emulator-options: >-
             -no-window -no-audio -no-boot-anim -no-snapshot
             -gpu swiftshader_indirect -camera-back none -camera-front none
+          # 注意：这个 action 按行执行 script，不能写反斜杠续行；每条命令必须自成一行。
           script: |
-            set -e
             adb install -r android/app/build/outputs/apk/release/app-release.apk
             adb install -r android/app/build/outputs/apk/androidTest/release/app-release-androidTest.apk
-            adb shell am instrument -w \
-              -e class dev.nightdesk.android.HostStoreInstrumentedTest,dev.nightdesk.android.MainUiInstrumentedTest,dev.nightdesk.android.RemoteControlUiInstrumentedTest \
-              dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/instrumented.log
+            adb shell am instrument -w -e class dev.nightdesk.android.HostStoreInstrumentedTest,dev.nightdesk.android.MainUiInstrumentedTest,dev.nightdesk.android.RemoteControlUiInstrumentedTest dev.nightdesk.android.test/androidx.test.runner.AndroidJUnitRunner | tee /tmp/instrumented.log
             grep -q 'OK (' /tmp/instrumented.log

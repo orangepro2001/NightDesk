@@ -15,7 +15,7 @@
 | Windows 全部断言（1.6.4 为 216 项） | 应急兜底 | **不可** | **主** |
 | Go 单元测试 / vet / Windows 交叉构建 | 可 | **主** | 未启用 |
 | Android 构建 / 单元测试 / lint | 应急兜底 | **主** | 主（debug） |
-| Android 仪器测试（模拟器） | 不可 | **主** | 不可（runner 无 KVM） |
+| Android 仪器测试（模拟器） | 不可 | **按需**（仅 `UpdateFlow`/交互调试） | **主**（KVM 硬件加速） |
 | Android release 签名 | 不可 | **主**（签名密钥在 AI 主机） | 不可 |
 | 真实 GDI / VDD / SendInput / 显示拓扑 | **唯一可做** | 不可 | 不可 |
 | Android 真机 | **唯一可做** | 不可 | 不可 |
@@ -29,7 +29,9 @@
 
 - 唯一的日常编译机：Linux 上交叉编译 `win-x64`，产出 `NightDesk.exe` + `nx-host.exe`。
 - Go 侧全量验证：`go test ./...`、`go vet ./...`、`GOOS=windows` 交叉构建、`gomobile bind` 重建 AAR。
-- Android 全链路：单元测试、lint、debug/release APK（用仓库外的固定签名密钥）、模拟器仪器测试。
+- Android 构建链路：单元测试、lint、debug/release APK（用仓库外的固定签名密钥）。
+  仪器测试的重活已经搬到 CI 的 KVM 模拟器；这台机器只在需要 `UpdateFlowInstrumentedTest`（要 tailnet）
+  或交互调试时**按需启动**模拟器，用完即停（§8.5）。
 - 更新源宿主：`nightdesk-update-feed.service` 与 `publish.py` / `publish_windows.py`。
 
 ### 1.2 GitHub CI 的职责
@@ -37,6 +39,7 @@
 - **在真 Windows 运行时上跑全部断言**，这是 AI 主机和其他任何 Linux 机器都做不到的。
 - 产出可直接下载做人工验收的更新 ZIP（`release.json` + 两个 EXE）。
 - Android 单元测试、lint、debug 构建，防止只在 AI 主机通过而 CI 环境不通过的隐性依赖。
+- **在 KVM 硬件加速的模拟器上跑常规仪器测试**，取代 AI 主机那个没有 KVM、常驻 10 GiB 的软件模拟器。
 
 ### 1.3 本机（当前主机）的职责——仍然不可替代
 
@@ -102,17 +105,16 @@ ssh AI 'git -C /home/tony/dev/NightDesk log -1 --format="%H %s"'
 2. 按 `global.json` 安装 .NET SDK `10.0.402`。
 3. `dotnet build tests/NightDesk.Tests -c Release -warnaserror`——**警告即错误**，对应验收要求的 “0 warnings / 0 errors”。
 4. `dotnet run --project tests/NightDesk.Tests -c Release --no-build`——跑全部断言（1.6.4 阶段 216 项）。日志里每条 `PASS:` 和最后的 `N tests passed.` 就是证据。
+5. `tools/publish-windows.ps1 -Dotnet dotnet`——自包含发布，并**真正执行 `nx-host.exe -version`**（这是 Linux 上做不到的 smoke check）。
+6. `tools/package-windows.ps1`——按 csproj 的 `<Version>` 自动算 versionCode，打出更新 ZIP。
+7. 上传 artifact `nightdesk-windows-<版本>`。
 
-   2026-10-28 在本仓库首次实跑的结果：`216 tests passed. No display state changed.`，
-   紧接的发布步骤打印 `ProductVersion: 1.6.4+<提交号>` 与 `nx-host version: nx-host 0.2.2`。
-   **整个 Windows 作业约 70–85 秒**（多次运行实测）。
+2026-10-28 在本仓库首次实跑的结果：`216 tests passed. No display state changed.`，发布步骤打印
+`ProductVersion: 1.6.4+<提交号>` 与 `nx-host version: nx-host 0.2.2`。**整个 Windows 作业约 70–85 秒**（多次运行实测）。
 
 **时间敏感处的处理**：`NxHostClient` 只给 sidecar **15 秒**报告 ready。冷启动的 runner 上首次执行这个 7.9 MB 的
 PE 会被杀毒/文件索引拖慢，2026-10-28 实测因此偶发失败过一次。所以工作流在跑断言前先执行
 `nx-host.exe -version`（同时是冒烟检查与文件缓存预热），断言失败还会**自动重试一次**——真实回归会连续失败两次。
-5. `tools/publish-windows.ps1 -Dotnet dotnet`——自包含发布，并**真正执行 `nx-host.exe -version`**（这是 Linux 上做不到的 smoke check）。
-6. `tools/package-windows.ps1`——按 csproj 的 `<Version>` 自动算 versionCode，打出更新 ZIP。
-7. 上传 artifact `nightdesk-windows-<版本>`。
 
 ### 4.2 `android` 作业做什么
 
@@ -124,16 +126,32 @@ JDK 17 + Android SDK 35 + Gradle 8.11.1（仓库没有 wrapper），执行
 
 **不签名 release APK**：签名密钥留在 AI 主机，可安装的 release APK 由 AI 主机产出（见 §7.4）。
 
-### 4.3 CI 明确做不到的事
+### 4.3 `android-instrumented` 作业做什么（KVM 模拟器）
+
+这一项原本是 AI 主机的负担：AI 主机没有 `/dev/kvm`，模拟器只能 TCG 纯软件模拟，`-memory 4096` 实测常驻
+**约 10 GiB**，而且它曾连续空转 1 天 16 小时，把 8 GiB swap 全部压满。GitHub 的标准 `ubuntu-latest`
+**支持 KVM 硬件加速**（加一条 udev 规则即可，见 [2024-04-02 的 changelog](https://github.blog/changelog/2024-04-02-gitHub-actions-hardware-accelerated-android-virtualization-now-available/)），
+所以把仪器测试搬了过来：
+
+1. 打开 `/dev/kvm` 权限并打印 `free -h`。
+2. 生成**一次性 CI 签名密钥**——`testBuildType=release` 要求 release APK 与 androidTest APK 同钥，
+   测试不关心签名身份。正式发布签名仍然只在 AI 主机，从不进 CI。
+3. 构建 `assembleRelease assembleReleaseAndroidTest`。
+4. `ReactiveCircus/android-emulator-runner@v2` 启动 API 35 x86_64 模拟器，安装两个 APK，跑
+   `HostStore` / `MainUi` / `RemoteControlUi` 三个类，并用 `grep 'OK ('` 判定。
+
+`UpdateFlowInstrumentedTest` **故意不在 CI 跑**：它要从 tailnet 上的更新源下载并校验版本。
+
+### 4.4 CI 明确做不到的事
 
 | 事项 | 原因 | 替代 |
 |---|---|---|
 | `-live-update` 断言（从线上更新源下载并校验） | runner 在公网，进不了 tailnet | AI 主机或本机执行 |
 | 真实显示器 / Parsec VDD / `SendInput` / DPI-UAC | 无真实桌面与会话 | 本机人工验收 |
-| Android 仪器测试 | runner 无 KVM，模拟器起不来 | AI 主机 `emulator-5580` |
-| 签名发布 APK | 需要密钥 | AI 主机 `android/scripts/build-ai.sh` |
+| `UpdateFlowInstrumentedTest` | 要从 tailnet 更新源下载并校验 | AI 主机按需启动模拟器（§8.5） |
+| 签名发布 APK | 需要正式密钥 | AI 主机 `android/scripts/build-ai.sh` |
 
-### 4.4 用 CI 结果做人工验收（本机操作）
+### 4.5 用 CI 结果做人工验收（本机操作）
 
 ```bash
 # 方式一：有 gh 的机器（AI 主机已认证）
@@ -288,9 +306,9 @@ ssh AI 'cd /home/tony/dev/NightDesk/native && gomobile bind -target=android -and
 | Windows 交叉构建 | AI 主机 | `tools/ai/build-windows.sh` | 两个 EXE + ZIP 与各自 SHA-256 | 约 15 秒 |
 | Android 单元测试 | AI / CI | `build-ai.sh` 内含 `testDebugUnitTest` | 46 个测试，0 失败 | 2–7 分钟（含 lint/打包；与模拟器争 CPU 时会接近上限） |
 | Android lint | AI / CI | `build-ai.sh` 内含 `lintRelease` | 0 error（当前 22 warning） | 同上 |
-| Android 仪器测试 | AI 主机 | `android/scripts/run-instrumented.sh` | 4 个类 6 个测试 OK | 约 1 分钟 |
-| Android 仪器测试构建 | AI 主机 | `android/scripts/build-androidtest.sh` | `ANDROIDTEST_OK` | 约 10 秒 |
-| 线上更新流程 | AI 主机 | 见 §8.5 的 `UpdateFlowInstrumentedTest` | 从更新源下载并校验版本 | 约 1 秒 |
+| Android 仪器测试（3 个无网络类） | **CI**（`android-instrumented`，KVM） | 推代码自动触发 | 6 个测试 `OK (` | 见 §12.1 |
+| Android 仪器测试构建 | AI 主机（按需） | `android/scripts/build-androidtest.sh` | `ANDROIDTEST_OK` | 约 10 秒 |
+| 线上更新流程 | AI 主机（按需开模拟器） | §8.5 的 `run-instrumented.sh` | 4 个类 6 个测试 OK | 约 1 分钟 |
 | 真实桌面行为 | **本机** | 人工 | 见 §8.6 | — |
 
 ### 8.2 Windows 断言（最重要的一条）
@@ -318,29 +336,35 @@ ssh AI 'cat /home/tony/dev/NightDesk/android/app/build/test-results/testDebugUni
 
 lint 报告：`android/app/build/reports/lint-results-release.html`。
 
-### 8.5 Android 仪器测试（模拟器）
+### 8.5 Android 仪器测试（默认 CI；AI 主机按需）
+
+**默认路径：什么都不用做。** 推代码后 `android-instrumented` 作业在 GitHub 的 KVM 模拟器上跑三个类
+（`HostStore` / `MainUi` / `RemoteControlUi`），约见 §12.1。AI 主机的模拟器保持关闭。
+
+**只有下面两种情况才在 AI 主机上开模拟器**：要跑 `UpdateFlowInstrumentedTest`（需要 tailnet 更新源），
+或者要人肉点界面调试。
 
 ```bash
-# 1) 确认模拟器在跑
-ssh AI '~/Android/Sdk/platform-tools/adb devices'
+# 1) 按需启动（默认 3072 MB / 4 核；无 KVM，RSS 约为 guest 内存的 2~3 倍）
+ssh AI 'bash /home/tony/dev/NightDesk/android/scripts/start-emulator.sh >/tmp/emu.log 2>&1 &'
 
-# 2) 构建 release + androidTest APK
+# 2) 等它起来
+ssh AI '~/Android/Sdk/platform-tools/adb wait-for-device && ~/Android/Sdk/platform-tools/adb shell getprop sys.boot_completed'
+
+# 3) 构建并跑（包含需要 tailnet 的 UpdateFlowInstrumentedTest）
 ssh AI 'bash /home/tony/dev/NightDesk/android/scripts/build-ai.sh'
 ssh AI 'bash /home/tony/dev/NightDesk/android/scripts/build-androidtest.sh'
-
-# 3) 安装并跑 4 个类
 ssh AI 'bash /home/tony/dev/NightDesk/android/scripts/run-instrumented.sh'
+
+# 4) 用完立刻停，把内存还回去（实测可释放约 7 GiB 常驻内存 + 1.5 GiB swap）
+ssh AI 'bash /home/tony/dev/NightDesk/android/scripts/stop-emulator.sh'
 ```
 
 日志落在 AI 主机 `/home/tony/dev/nightdesk-logs/instrumented.log`，退出码在同目录 `instrumented.exit`。
-模拟器是纯软件模拟（无 KVM），冷启动很慢；失败先看进程是否还在：
 
-```bash
-ssh AI 'pgrep -af "emulator.*nightdesk-api35" || echo "emulator not running"'
-```
-
-`UpdateFlowInstrumentedTest` 需要 tailnet 更新源，脚本已通过 `-e updateOrigin
-https://tony-ai-pc-1.tail9f7f1f.ts.net` 传入；**这条不能上 CI**。
+**为什么必须「用完即停」**：这台机器没有 `/dev/kvm`，qemu 用 TCG 纯软件模拟，`-memory 4096` 时 RSS
+实测 **9.6 GiB**；它曾连续空转 1 天 16 小时，把 8 GiB swap 压到只剩 48 MiB。停机后 `used` 从 21 GiB 降到
+14 GiB、`available` 从 8.9 GiB 升到 16 GiB。调低占用还可以用 `ND_EMU_MEMORY=2048 ND_EMU_CORES=2` 前缀覆盖。
 
 ### 8.6 人工验收清单（本机）
 
@@ -407,7 +431,8 @@ git -C /mnt/c/dev/NightDesk pull --ff-only
 | 限制 | 影响 | 应对 |
 |---|---|---|
 | Linux 上不能运行 Windows 断言 | AI 主机无法给出 Windows 结论 | CI `windows-latest` 为准；本机兜底 |
-| AI 主机无 KVM / 无 vmx | 开不了 Windows 虚拟机；Android 模拟器只能纯软件 | 仪器测试在 `emulator-5580` 上跑，接受慢 |
+| AI 主机无 KVM / 无 vmx | 开不了 Windows 虚拟机；Android 模拟器只能 TCG 纯软件模拟 | 常规仪器测试已移到 CI 的 KVM 模拟器；AI 主机只在需要 tailnet 用例时按需启动，用完即停 |
+| 无 KVM 的模拟器内存放大 | `-memory 4096` 实测 RSS 9.6 GiB，曾空转 1 天 16 小时吃满 8 GiB swap | 默认降到 3072 MB / 4 核；`stop-emulator.sh` 用完即停（可释放约 7 GiB + 1.5 GiB swap） |
 | AI 主机无 `pwsh` | `tools/*.ps1` 不能直接跑 | 打包用 `tools/ai/package_windows.py`；发布脚本是 Python |
 | Android / Windows 构建不可字节复现 | 同一提交两次构建 SHA-256 不同（Android 尺寸也可能相同；Windows EXE 交叉编译与原生编译大小差约 1.6 KB） | 用版本号 + `ProductVersion` + 安装行为判定；发布清单必须由当次产物重算 |
 | gomobile AAR 不可字节复现 | 同 §7.6 | 只在 Go 侧改动后重建，并重跑全部 Android 验证 |
