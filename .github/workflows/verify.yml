@@ -5,7 +5,7 @@
 # 它同时产出可直接下载做人工验收的更新 ZIP（release.json + NightDesk.exe + nx-host.exe）。
 #
 # Android 作业只做单元测试、lint 和 debug 构建；可安装的 release APK 由 AI 主机用
-# 仓库内签名密钥构建，见 docs 中的协同指南。
+# 仓库内签名密钥构建，见 docs/20261028-123000-dev-test-collaboration.md。
 name: verify
 
 on:
@@ -25,6 +25,7 @@ jobs:
   windows:
     name: Windows build, tests and package
     runs-on: windows-latest
+    timeout-minutes: 40
     steps:
       # 两台开发机都用 core.autocrlf=input，工作树是 LF。Git for Windows 默认会转成
       # CRLF，先固定成 LF，避免 CI 与开发机的源码文本/断言基线不一致。
@@ -32,10 +33,10 @@ jobs:
         shell: pwsh
         run: git config --global core.autocrlf false
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install .NET SDK pinned by global.json
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.402'
 
@@ -73,7 +74,7 @@ jobs:
           "versionCode=$versionCode" >> $env:GITHUB_OUTPUT
 
       - name: Upload Windows package for manual acceptance
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nightdesk-windows-${{ steps.package.outputs.version }}
           path: artifacts/windows-packages/nightdesk-windows-${{ steps.package.outputs.version }}.zip
@@ -83,26 +84,27 @@ jobs:
   android:
     name: Android build, unit tests and lint
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     defaults:
       run:
         working-directory: android
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Install Android SDK (accepts licenses, adds platform-tools)
+        uses: android-actions/setup-android@v4
 
       - name: Install SDK packages used by compileSdk 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Gradle (no wrapper in repo)
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.11.1'
 
@@ -111,15 +113,17 @@ jobs:
 
       - name: Upload unit test report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android-unit-test-report
           path: android/app/build/reports/tests/testDebugUnitTest
           if-no-files-found: warn
+          retention-days: 14
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nightdesk-android-debug
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+          retention-days: 14
