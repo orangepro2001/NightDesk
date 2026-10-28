@@ -18,7 +18,7 @@ export NIGHTDESK_KEYSTORE="$keydir/release.p12"
 export NIGHTDESK_STORE_PASSWORD="$(cat "$keydir/password")"
 keytool -exportcert -keystore "$NIGHTDESK_KEYSTORE" -storepass:file "$keydir/password" -alias nightdesk -file "$keydir/certificate.der" >/dev/null 2>&1
 sha256sum "$keydir/certificate.der" | cut -d' ' -f1 > "$keydir/certificate.sha256"
-cd "${NIGHTDESK_ANDROID_DIR:-/home/tony/dev/nightdesk-android}"
+cd "${NIGHTDESK_ANDROID_DIR:-/home/tony/dev/NightDesk/android}"
 printf 'BUILD_START %s\n' "$(date -Is)"
 gradle --no-daemon testDebugUnitTest lintRelease assembleDebug assembleRelease "$@"
 printf 'BUILD_OK\n'

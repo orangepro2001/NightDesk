@@ -2,8 +2,9 @@
 
 更新时间：2026-10-28（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前实现：Windows 1.6.4 / nx-host 0.2.2 / Android 1.3.4；本轮远控交互升级已构建并发布，尚未创建 Git 提交
+当前实现：Windows 1.6.4 / nx-host 0.2.2 / Android 1.3.4；本轮远控交互升级已提交（`a55ad8e`）并发布
 最新阶段交接：`docs\20261028-093200-mobile-remote-ux-1.6.4-1.3.4-release-handoff.md`
+开发与测试协同：`docs\20261028-123000-dev-test-collaboration.md`（AI 主机编译、GitHub CI 跑 Windows 断言、本机验收）
 
 ## 最新阶段：远控交互升级与双端发布（2026-10-28 09:32 KST）
 

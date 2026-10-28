@@ -72,6 +72,9 @@ Windows ZIP 目前无 Authenticode 签名；HTTPS/tailnet ACL 和 SHA-256 一致
 
 ## 开发与恢复
 
+分工、编译、测试的完整说明见 [开发与测试协同指南](C:/dev/NightDesk/docs/20261028-123000-dev-test-collaboration.md)：
+日常在 AI 主机交叉编译 Windows 产物，Windows 全部断言由 GitHub CI（`windows-latest`）执行，本机只做人工验收。
+
 Windows 使用 .NET SDK 10.0.402。测试入口是可执行断言程序，使用 dotnet run，不是 dotnet test。
 
 ```powershell
@@ -82,7 +85,8 @@ powershell.exe -NoProfile -File C:\dev\NightDesk\tools\package-windows.ps1 -Vers
 powershell.exe -NoProfile -File C:\dev\NightDesk\tools\test-desktop-update-install.ps1
 ```
 
-Android SDK/JDK/Gradle/adb/emulator/签名只在 SSH 主机 AI 使用；当前构建目录 `/home/tony/dev/nightdesk-android-ui-20261027/android`。不触碰其它工作 tmux 会话。
+Android SDK/JDK/Gradle/adb/emulator/签名只在 AI 主机使用；标准检出与构建目录是 `/home/tony/dev/NightDesk/android`
+（`android/scripts/*.sh` 的默认值，可用 `NIGHTDESK_ANDROID_DIR` 覆盖）。不触碰其它工作 tmux 会话。
 
 - 配置/快照：`%LOCALAPPDATA%\NightDesk`。
 - 桌面更新缓存：`%LOCALAPPDATA%\NightDesk\updates\windows`；安装日志 install.log。
@@ -90,6 +94,7 @@ Android SDK/JDK/Gradle/adb/emulator/签名只在 SSH 主机 AI 使用；当前�
 
 ## 文档
 
+- [开发与测试协同指南（本机 / AI 主机 / GitHub CI）](C:/dev/NightDesk/docs/20261028-123000-dev-test-collaboration.md)
 - [远控侧栏、光标闪烁调查与双端 1.6.3/1.3.3 恢复说明](C:/dev/NightDesk/docs/20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md)
 - [发行目录清理与最新分发保留](C:/dev/NightDesk/docs/20261028-065453-release-directory-cleanup-handoff.md)
 - [NX 颜色修复、双端 1.6.2/1.3.2 发布与恢复说明](C:/dev/NightDesk/docs/20261027-163807-nx-color-fix-dual-release-1.6.2-1.3.2-handoff.md)

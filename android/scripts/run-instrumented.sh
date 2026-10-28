@@ -6,7 +6,7 @@ export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$PATH"
 LOG=/home/tony/dev/nightdesk-logs/instrumented.log
 mkdir -p "$(dirname "$LOG")"
 rm -f /home/tony/dev/nightdesk-logs/instrumented.exit
-android_dir="${NIGHTDESK_ANDROID_DIR:-/home/tony/dev/nightdesk-android}"
+android_dir="${NIGHTDESK_ANDROID_DIR:-/home/tony/dev/NightDesk/android}"
 serial="${NIGHTDESK_ANDROID_SERIAL:-emulator-5580}"
 update_origin="${NIGHTDESK_UPDATE_ORIGIN:-https://tony-ai-pc-1.tail9f7f1f.ts.net}"
 status=0
