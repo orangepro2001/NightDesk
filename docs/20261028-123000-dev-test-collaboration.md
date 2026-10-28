@@ -105,7 +105,7 @@ ssh AI 'git -C /home/tony/dev/NightDesk log -1 --format="%H %s"'
 
    2026-10-28 在本仓库首次实跑的结果：`216 tests passed. No display state changed.`，
    紧接的发布步骤打印 `ProductVersion: 1.6.4+<提交号>` 与 `nx-host version: nx-host 0.2.2`。
-   **整个 Windows 作业约 84 秒**。
+   **整个 Windows 作业约 70–85 秒**（多次运行实测）。
 5. `tools/publish-windows.ps1 -Dotnet dotnet`——自包含发布，并**真正执行 `nx-host.exe -version`**（这是 Linux 上做不到的 smoke check）。
 6. `tools/package-windows.ps1`——按 csproj 的 `<Version>` 自动算 versionCode，打出更新 ZIP。
 7. 上传 artifact `nightdesk-windows-<版本>`。
