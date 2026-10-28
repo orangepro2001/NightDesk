@@ -11,3 +11,7 @@ nightdesk-android.tar.gz
 TestResults/
 __pycache__/
 *.pyc
+# Gradle / Android build outputs (produced by android/scripts/build-ai.sh on the AI host)
+.gradle/
+android/build/
+android/app/build/
