@@ -16,6 +16,12 @@ class RemoteGestureTest {
     }
 
     @Test
+    fun tapWithoutAFreshPointClicksTheLastKnownCursor() {
+        gesture.onDown(100f, 200f, NxPoint(100, 200), 0L)
+        assertEquals(listOf(NxTouchAction.Click(100, 200)), gesture.onUp(null))
+    }
+
+    @Test
     fun ordinaryFingerMovementMovesCursorWithoutHoldingLeftButton() {
         gesture.onDown(100f, 200f, NxPoint(100, 200), 0L)
         assertEquals(listOf(NxTouchAction.Move(160, 240)), gesture.onMove(160f, 240f, NxPoint(160, 240), 80L))
@@ -52,22 +58,61 @@ class RemoteGestureTest {
     }
 
     @Test
-    fun secondPointerCancelsTapAndUsesTwoFingerScroll() {
+    fun quickTwoFingerTapRightClicksWithoutStartingAScroll() {
         gesture.onDown(100f, 200f, NxPoint(100, 200), 0L)
-        assertEquals(emptyList<NxTouchAction>(), gesture.onPointerDown(200f))
-        assertEquals(listOf(NxTouchAction.Scroll(120)), gesture.onTwoFingerMove(170f))
-        assertEquals(emptyList<NxTouchAction>(), gesture.onPointerUp())
+        assertEquals(emptyList<NxTouchAction>(), gesture.onPointerDown(160f, 240f, 40L))
+        assertTrue(gesture.isTwoFingerGesture)
+        assertEquals(emptyList<NxTouchAction>(), gesture.onTwoFingerMove(162f, 242f, 80L))
+        assertEquals(listOf(NxTouchAction.RightClick(100, 200)), gesture.onPointerUp(200L, 1))
         assertEquals(emptyList<NxTouchAction>(), gesture.onUp(NxPoint(100, 200)))
-        assertFalse(gesture.isInputHeld)
+        assertFalse(gesture.isScrolling)
+    }
+
+    @Test
+    fun twoFingerMovementBecomesVerticalScrollInsteadOfRightClick() {
+        gesture.onDown(100f, 200f, NxPoint(100, 200), 0L)
+        gesture.onPointerDown(100f, 200f, 100L)
+        assertEquals(emptyList<NxTouchAction>(), gesture.onTwoFingerMove(100f, 170f, 120L))
+        assertEquals(listOf(NxTouchAction.Scroll(120)), gesture.onTwoFingerMove(100f, 130f, 300L))
+        assertTrue(gesture.isScrolling)
+        assertEquals(emptyList<NxTouchAction>(), gesture.onPointerUp(350L, 1))
+    }
+
+    @Test
+    fun twoFingerMovementScrollsHorizontallyToo() {
+        gesture.onDown(100f, 200f, NxPoint(100, 200), 0L)
+        gesture.onPointerDown(100f, 200f, 100L)
+        assertEquals(emptyList<NxTouchAction>(), gesture.onTwoFingerMove(130f, 200f, 120L))
+        assertEquals(listOf(NxTouchAction.ScrollH(120)), gesture.onTwoFingerMove(170f, 200f, 140L))
+    }
+
+    @Test
+    fun liftingAfterAScrollRequestsInertialScrolling() {
+        gesture.onDown(100f, 200f, NxPoint(100, 200), 0L)
+        gesture.onPointerDown(100f, 200f, 100L)
+        assertEquals(emptyList<NxTouchAction>(), gesture.onTwoFingerMove(100f, 170f, 120L))
+        assertTrue(gesture.onTwoFingerMove(100f, 90f, 140L).isNotEmpty())
+        val fling = gesture.onPointerUp(160L, 1).single() as NxTouchAction.Fling
+        assertTrue("expected upward fling, got $fling", fling.velocityY > 0f)
     }
 
     @Test
     fun secondPointerDuringDragReleasesLeftBeforeScrolling() {
         gesture.onDown(100f, 200f, NxPoint(100, 200), 0L)
         gesture.onLongPress(400L)
-        assertEquals(listOf(NxTouchAction.EndDrag(100, 200)), gesture.onPointerDown(200f))
+        assertEquals(listOf(NxTouchAction.EndDrag(100, 200)), gesture.onPointerDown(100f, 200f, 420L))
         assertFalse(gesture.isInputHeld)
-        assertEquals(listOf(NxTouchAction.Scroll(120)), gesture.onTwoFingerMove(170f))
+        assertTrue(gesture.isTwoFingerGesture)
+    }
+
+    @Test
+    fun draggingSecondPointerStartsScrollOnlyAfterSlop() {
+        gesture.onDown(100f, 200f, NxPoint(100, 200), 0L)
+        gesture.onLongPress(400L)
+        gesture.onPointerDown(100f, 200f, 420L)
+        assertEquals(emptyList<NxTouchAction>(), gesture.onTwoFingerMove(100f, 210f, 440L))
+        assertEquals(emptyList<NxTouchAction>(), gesture.onTwoFingerMove(100f, 170f, 460L))
+        assertEquals(listOf(NxTouchAction.Scroll(120)), gesture.onTwoFingerMove(100f, 130f, 480L))
     }
 
     @Test

@@ -49,8 +49,11 @@ class RemoteControlUiInstrumentedTest {
                 assertTrue("side menu did not expand", controls.width >= (240 * density).toInt())
                 assertTrue("gesture guidance is missing", controls.gestureHint.text.contains("长按拖动"))
                 val content = (controls.getChildAt(0) as ScrollView).getChildAt(0) as ViewGroup
+                assertTrue("mouse mode switch is missing", hasButton(content, "鼠标模式"))
                 assertTrue("keyboard launcher is missing", hasButton(content, "键盘输入"))
                 assertTrue("special-key controls are missing", hasButton(content, "常用按键"))
+                controls.setMouseMode(NxMouseMode.Trackpad)
+                assertTrue("trackpad guidance is missing", controls.gestureHint.text.contains("移动指针"))
                 assertTrue("release action is unavailable", controls.releaseButton.isShown && controls.releaseButton.isEnabled)
                 assertTrue("release target is too small", controls.releaseButton.height >= (48 * density).toInt())
                 controls.releaseButton.performClick()

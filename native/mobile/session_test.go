@@ -298,6 +298,9 @@ func TestSessionPairsStreamsAndInjectsInput(t *testing.T) {
 	if err := s.Wheel(120); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.WheelH(-120); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.MouseUp(0); err != nil {
 		t.Fatal(err)
 	}
@@ -316,6 +319,7 @@ func TestSessionPairsStreamsAndInjectsInput(t *testing.T) {
 	for time.Now().Before(deadline) {
 		if inj.count(proto.KindMouseMove) == 1 && inj.count(proto.KindMouseDown) == 1 &&
 			inj.count(proto.KindMouseUp) == 1 && inj.count(proto.KindWheel) == 1 &&
+			inj.count(proto.KindWheelH) == 1 &&
 			inj.count(proto.KindKeyDown) == 1 && inj.count(proto.KindKeyUp) == 1 && inj.textCount() == 1 {
 			break
 		}
@@ -327,7 +331,7 @@ func TestSessionPairsStreamsAndInjectsInput(t *testing.T) {
 	if inj.textCount() != 1 {
 		t.Fatalf("text injections = %d", inj.textCount())
 	}
-	for _, kind := range []byte{proto.KindMouseDown, proto.KindMouseUp, proto.KindWheel} {
+	for _, kind := range []byte{proto.KindMouseDown, proto.KindMouseUp, proto.KindWheel, proto.KindWheelH} {
 		in, ok := inj.input(kind)
 		if !ok {
 			t.Fatalf("input kind %d not observed", kind)

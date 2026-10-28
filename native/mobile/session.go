@@ -264,6 +264,13 @@ func (s *Session) Wheel(delta int) error {
 	return s.client.SendInput(proto.Input{Kind: proto.KindWheel, X: s.mouseX, Y: s.mouseY, Arg: int32(delta)})
 }
 
+// WheelH sends a horizontal wheel delta in Windows 1/120-notch units.
+func (s *Session) WheelH(delta int) error {
+	s.inputMu.Lock()
+	defer s.inputMu.Unlock()
+	return s.client.SendInput(proto.Input{Kind: proto.KindWheelH, X: s.mouseX, Y: s.mouseY, Arg: int32(delta)})
+}
+
 // KeyDown and KeyUp accept a Windows virtual-key code. Values 0x100..0x1ff
 // represent the corresponding extended key (for example 0x100|0x2d is Insert).
 func (s *Session) KeyDown(vk int) error { return s.key(vk, true) }

@@ -2,24 +2,24 @@
 
 更新日期：2026-10-28（Asia/Seoul）
 工作目录：`C:\dev\NightDesk`
-本轮范围：发行目录清理；NX viewer 全屏/可折叠侧栏和快捷键；追踪被控端物理鼠标光标闪烁路径；发布 Windows 1.6.3 / Android 1.3.3。历史颜色修复记录保留在第 2.3 节。
+本轮范围：远控交互升级（双鼠标模式、手势、惯性滚动、自适应 FPS、横向滚轮）；发布 Windows 1.6.4 / nx-host 0.2.2 / Android 1.3.4。历史颜色修复记录保留在第 2.3 节。
 
 ## 1. 当前交付状态
 
 | 项目 | 状态 |
 |---|---|
-| 最新实现提交 | `e75618d`（已推送 `origin/main`） |
-| Windows | 1.6.3 / 10603，AI ZIP 已发布；生产桌面未替换 |
-| Windows ZIP | 85184688 字节，SHA-256 `3214419d6ed87d95111a1c1c2e719307b8cc046ad624ceeebd09b0310243ebc7` |
-| Windows EXE | 201926404 字节，SHA-256 `aa60d46e87fee8e057c7b8172340642a1959425404f4e873c8c7811ed9ecd526` |
-| nx-host | 0.2.1，7940608 字节，SHA-256 `88233ba806d9a7ebe4bda5c66a2e4c61e0d9dc9b43c48787170ca68e6087b9f0` |
-| Android | 1.3.3 / 12，55076236 字节，SHA-256 `61f967a0d53d2fdbcf6fde6659404216cb804db847ff801576e22c2da9108e9f` |
+| 最新实现提交 | 本轮工作树变更，尚未创建 Git 提交 |
+| Windows | 1.6.4 / 10604，AI ZIP 已发布；生产桌面未替换 |
+| Windows ZIP | 85185993 字节，SHA-256 `4ae4a1f9ccadc7a1a95165b4d39676153428a35072b65dbfd3d410614d0b67ee` |
+| Windows EXE | 201926404 字节，SHA-256 `47b54a4d1585b161fe46eeb95db9fa8f9c70468b52c9e7875264b1018b865cd1` |
+| nx-host | 0.2.2，7943168 字节，SHA-256 `87a0016a334582c03a24751c8f957f4a3cbb99731faaf93bb7a20a76e6d85c88` |
+| Android | 1.3.4 / 13，55112556 字节，SHA-256 `4613d52f00f80cde58042687d2428e799891de5a2bb1115f0b2f0dcdb2067271` |
 | Android 证书 | `41d3a3e360d8892028d968d5f90bad4541ea7896a36ca08e2560b6330825b767` |
 | 服务 | active / enabled；healthz = ok android=ok windows=ok |
 
 [双平台下载页](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk) · [Windows ZIP](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/windows/latest.zip) · [Android APK](https://tony-ai-pc-1.tail9f7f1f.ts.net/nightdesk/latest.apk)
 
-完整恢复说明见 `C:\dev\NightDesk\docs\20261028-065453-release-directory-cleanup-handoff.md` 和上一阶段 `C:\dev\NightDesk\docs\20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md`。
+完整恢复说明见 `C:\dev\NightDesk\docs\20261028-093200-mobile-remote-ux-1.6.4-1.3.4-release-handoff.md`；上一阶段见 `C:\dev\NightDesk\docs\20261027-201142-nx-sidebar-cursor-review-1.6.3-1.3.3-handoff.md`。
 
 ## 2. 自动化结果（本轮已复核）
 
@@ -79,7 +79,16 @@ Windows 没有 Authenticode 签名；HTTPS + SHA-256 不替代独立发布签名
 - Android AI：36 JVM tests；Release/Debug/AndroidTest 构建；lint 0 errors / 23 warnings；`HostStore` 3、`MainUi` 1、`RemoteControlUi` 1、`UpdateFlow` 1 仪器测试通过。更新流程在已安装版本等于线上版本时验证“无更新”；emulator 最终安装版本为 code 12 / 1.3.3。
 - 双平台发布后复核：Windows 与 Android manifest 可读、HTTPS HEAD 200 且长度匹配；本地包与 AI feed 的 SHA-256 一致；服务 `active`，healthz=`ok android=ok windows=ok`。未触碰生产程序。
 - 被控端物理光标：`Screen.Grab` 的 `BitBlt`、`GetCursorInfo`、`GetIconInfo`、`DrawIconEx` 与 DIB 复制均走内存 DC/离屏帧；注入路径使用 `SendInput`，会在实际 Windows 会话中移动物理系统指针。NX 源码未发现 `ShowCursor`、`SetCursor`、`ClipCursor` 调用。
-- 结论边界：以上只能描述代码路径。**物理显示器上的闪烁未在隔离 Windows 测试机上复现，原因未知，未实施光标隐藏或其它光标策略改动**。需先在隔离主机与 Android 真机/Windows viewer 端到端观察，记录输入频率、显示器/缩放/光标主题，并区分系统指针闪烁、远端帧更新和合成器现象。禁止为验证在当前生产桌面运行真实 `SendInput` 或 GDI 抓屏。
+- 结论边界：以上只能描述代码路径。**物理显示器上的闪烁未在隔离 Windows 测试机上复现，原因未知，未实施主机端光标隐藏或其它光标策略改动**。需先在隔离主机与 Android 真机/Windows viewer 端到端观察，记录输入频率、显示器/缩放/光标主题，并区分系统指针闪烁、远端帧更新和合成器现象。禁止为验证在当前生产桌面运行真实 `SendInput` 或 GDI 抓屏。1.6.4 起 Windows viewer 仅在自身远端画面内隐藏本机指针，见 2.5。
+
+### 2.5 远控交互升级（Windows 1.6.4 / Android 1.3.4）
+
+- Android 新增直接定位/触摸板双鼠标模式（偏好持久化）与指针加速；双指轻点右键、横纵向滚动、惯性滑动；连续移动合并为最新位置；侧栏显示分辨率/FPS 并提供触觉反馈。
+- Windows host 在收到远端输入后 1.2 秒内把采集提升到 30 FPS，空闲回落到配置值；新增 `KindWheelH` 横向滚轮协议与 `MOUSEEVENTF_HWHEEL` 注入；WPF viewer 支持 Shift+滚轮并在远端画面内隐藏本机指针。
+- 验证：Windows 216 项断言通过，Release 0 warnings / 0 errors；`-live-update` 从真实 HTTPS feed 下载并 staging 1.6.4/10604，未安装。Go `test`/`vet`/`-race` 和 Windows cross-build 通过；`nx-host -version` 为 0.2.2。
+- Android：46 项 JVM、lint 0 errors、Debug/Release/AndroidTest 构建、6 项仪器测试通过。模拟器从已发布 code 12 运行 UpdateFlow，经 HTTPS 下载 code 13，校验长度/SHA-256/签名后通过，再安装 code 13 并确认 `versionCode=13` / `versionName=1.3.4`。
+- Feed：Android 1.3.4/13 与 Windows 1.6.4/10604 manifest 已发布，`latest.apk`/`latest.zip` HEAD 200；实际 GET 的大小与 SHA-256 和 manifest 一致。Android 清单备份 `manifest.json.pre-1.3.4-ux-20261028`；Windows 自动备份 `windows-manifest.json.bak-20261028-092556`。
+- 未完成：真实 Android 真机 + 隔离 Windows 主机的触摸板手感、双指右键、惯性滚动、DPI/多屏和 `SendInput`；生产桌面未替换 `NightDesk.exe`/`nx-host.exe`。
 
 ## 3. go-nx 远程控制（阶段 1-7）
 

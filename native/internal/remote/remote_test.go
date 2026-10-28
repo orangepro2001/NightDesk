@@ -287,6 +287,7 @@ func TestServeReleasesHeldKeysOnDisconnect(t *testing.T) {
 	inj := &fakeInjector{}
 	controller := NewInputController(inj)
 	served := make(chan error, 1)
+	inputSeen := make(chan struct{}, 1)
 	go func() {
 		conn, err := ln.Accept(ctx)
 		if err != nil {
@@ -296,7 +297,13 @@ func TestServeReleasesHeldKeysOnDisconnect(t *testing.T) {
 		served <- Serve(ctx, conn, newFakeSource(64, 64), inj, proto.NewDedup(), Options{
 			FPS:             50,
 			InputController: controller,
-			Check:           func(_, _, _ string) (trust.Verdict, error) { return trust.Allowed, nil },
+			OnInput: func() {
+				select {
+				case inputSeen <- struct{}{}:
+				default:
+				}
+			},
+			Check: func(_, _, _ string) (trust.Verdict, error) { return trust.Allowed, nil },
 		})
 	}()
 
@@ -306,6 +313,11 @@ func TestServeReleasesHeldKeysOnDisconnect(t *testing.T) {
 	}
 	if err := cl.SendInput(proto.Input{Kind: proto.KindKeyDown, Arg: 0xA2}); err != nil { // VK_LCONTROL
 		t.Fatal(err)
+	}
+	select {
+	case <-inputSeen:
+	case <-time.After(3 * time.Second):
+		t.Fatal("OnInput was not called for viewer input")
 	}
 	waitForInputCount(t, inj, proto.KindKeyDown, 1)
 	cl.Close() // Simulate a dropped connection before Ctrl key-up reaches the host.

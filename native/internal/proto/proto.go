@@ -35,9 +35,10 @@ const (
 	KindMouseMove byte = 1 // x, y in host pixels
 	KindMouseDown byte = 2 // arg: 0 left, 1 right, 2 middle
 	KindMouseUp   byte = 3
-	KindWheel     byte = 4 // arg: delta in 1/120 notches
+	KindWheel     byte = 4 // arg: vertical delta in 1/120 notches
 	KindKeyDown   byte = 5 // arg: Windows virtual-key code
 	KindKeyUp     byte = 6
+	KindWheelH    byte = 7 // arg: horizontal delta in 1/120 notches
 )
 
 // Receipt statuses.

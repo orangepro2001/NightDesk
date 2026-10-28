@@ -11,7 +11,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
-internal enum class RemoteControlAction { Toggle, Keyboard, SpecialKeys, RightClick, ReleaseAll, Retry, PairAgain, Disconnect }
+internal enum class RemoteControlAction {
+    Toggle, ToggleMouseMode, Keyboard, SpecialKeys, RightClick, ReleaseAll, Retry, PairAgain, Disconnect
+}
 
 /** A collapsible edge sidebar; only its small handle overlays the remote image while idle. */
 internal class RemoteTouchControls(
@@ -52,14 +54,20 @@ internal class RemoteTouchControls(
         setOnClickListener { onAction(RemoteControlAction.Toggle, it) }
     }
     val releaseButton: Button
+    val mouseModeButton: Button
     private lateinit var retryButton: Button
     private lateinit var pairButton: Button
     private var expanded = false
+    private var dragging = false
+    private var mouseMode = NxMouseMode.Direct
     val isExpanded: Boolean get() = expanded
 
     init {
         menuContent.addView(status)
         menuContent.addView(gestureHint)
+        mouseModeButton = addAction(MouseModeDirectLabel, RemoteControlAction.ToggleMouseMode).apply {
+            contentDescription = "切换鼠标控制方式：直接触摸或触摸板相对移动"
+        }
         addAction("键盘输入…", RemoteControlAction.Keyboard)
         addAction("常用按键…", RemoteControlAction.SpecialKeys)
         addAction("鼠标右键", RemoteControlAction.RightClick)
@@ -101,16 +109,29 @@ internal class RemoteTouchControls(
     fun setRetryVisible(visible: Boolean) { retryButton.visibility = if (visible) VISIBLE else GONE }
     fun setPairVisible(visible: Boolean) { pairButton.visibility = if (visible) VISIBLE else GONE }
 
+    fun setMouseMode(mode: NxMouseMode) {
+        mouseMode = mode
+        mouseModeButton.text = if (mode == NxMouseMode.Trackpad) MouseModeTrackpadLabel else MouseModeDirectLabel
+        if (!dragging) gestureHint.text = hintFor(mode)
+    }
+
     fun showDragging() {
+        dragging = true
         gestureHint.text = "正在拖动 · 抬手结束 · 可点释放强制松开"
         menuButton.text = "↻"
         menuButton.contentDescription = "正在拖动；打开控制栏并释放鼠标按钮"
     }
 
     fun showDefaultHint() {
-        gestureHint.text = DefaultHint
+        dragging = false
+        gestureHint.text = hintFor(mouseMode)
         menuButton.text = "⋮"
         menuButton.contentDescription = "打开远控控制侧栏；硬件键盘 F1 打开菜单，F2 呼出键盘"
+    }
+
+    private fun hintFor(mode: NxMouseMode) = when (mode) {
+        NxMouseMode.Direct -> DefaultHint
+        NxMouseMode.Trackpad -> TrackpadHint
     }
 
     private fun expandMenu() {
@@ -163,6 +184,9 @@ internal class RemoteTouchControls(
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     companion object {
-        const val DefaultHint = "轻点=左键 · 单指滑动=移动 · 长按拖动 · 双指滚动"
+        const val DefaultHint = "轻点=左键 · 单指滑动=定位 · 长按拖动 · 双指滚动 · 双指轻点=右键"
+        const val TrackpadHint = "单指滑动=移动指针 · 轻点=左键 · 长按拖动 · 双指滚动 · 双指轻点=右键"
+        private const val MouseModeDirectLabel = "鼠标模式：直接定位"
+        private const val MouseModeTrackpadLabel = "鼠标模式：触摸板"
     }
 }

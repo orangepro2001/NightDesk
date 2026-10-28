@@ -22,14 +22,14 @@ if (args.Contains("-live-update"))
     string updateRoot = Path.Combine(Path.GetTempPath(), "nightdesk-live-update-" + Guid.NewGuid().ToString("N"));
     try
     {
-        using var updater = new DesktopUpdateService(updateRoot, currentVersion: new Version(1, 6, 2));
+        using var updater = new DesktopUpdateService(updateRoot, currentVersion: new Version(1, 6, 3));
         WindowsUpdateRelease release = await updater.CheckAndDownloadAsync()
             ?? throw new Exception("No Windows update was offered.");
         WindowsUpdateReady ready = updater.Ready()
             ?? throw new Exception("The downloaded Windows package was not staged.");
-        if (release.Version != "1.6.3" || release.VersionCode != 10603 ||
+        if (release.Version != "1.6.4" || release.VersionCode != 10604 ||
             new[] { "NightDesk.exe", "nx-host.exe" }.Any(name => !File.Exists(Path.Combine(ready.Directory, name))))
-            throw new Exception("The live Windows candidate did not match 1.6.3/10603 with both executables.");
+            throw new Exception("The live Windows candidate did not match 1.6.4/10604 with both executables.");
         Console.WriteLine($"PASS: live Windows updater verified {release.Version}/{release.VersionCode} in an isolated cache; no install was requested.");
     }
     finally
@@ -402,6 +402,7 @@ Check(helloPacket.Length == 8 && helloPacket[0] == NxViewerWire.MsgHello && hell
 byte[] inputPacket = NxViewerWire.Input(9, NxViewerInputKind.MouseDown, 10, 20, 1);
 Check(inputPacket.Length == 22 && BitConverter.ToUInt64(inputPacket, 1) == 9 && inputPacket[9] == NxViewerInputKind.MouseDown &&
       BitConverter.ToInt32(inputPacket, 10) == 10 && BitConverter.ToInt32(inputPacket, 18) == 1, "viewer encodes input action");
+Check(NxViewerInputKind.WheelH == 7, "viewer shares the horizontal-wheel protocol with the host");
 Reject(() => NxViewerWire.Text(0, new string('x', 1025)), "viewer rejects oversized text action");
 byte[] receiptPacket = new byte[10]; receiptPacket[0] = NxViewerWire.MsgReceipt;
 BitConverter.GetBytes(77UL).CopyTo(receiptPacket, 1); receiptPacket[9] = 1;

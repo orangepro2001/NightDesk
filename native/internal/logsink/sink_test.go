@@ -17,11 +17,14 @@ func TestSinkRecordsInputsAndText(t *testing.T) {
 	if err := s.Inject(proto.Input{OpID: 2, Kind: proto.KindKeyDown, Arg: 0x41}); err != nil {
 		t.Fatal(err)
 	}
+	if err := s.Inject(proto.Input{OpID: 3, Kind: proto.KindWheelH, Arg: -120}); err != nil {
+		t.Fatal(err)
+	}
 	if err := s.InjectText("你好 NightDesk"); err != nil {
 		t.Fatal(err)
 	}
 	n, last := s.Snapshot()
-	if n != 3 {
+	if n != 4 {
 		t.Fatalf("count = %d", n)
 	}
 	if !bytes.Contains([]byte(last), []byte("NightDesk")) {

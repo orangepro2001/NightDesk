@@ -31,6 +31,7 @@ const (
 	mouseMiddleDown  = 0x0020
 	mouseMiddleUp    = 0x0040
 	mouseWheel       = 0x0800
+	mouseHWheel      = 0x01000
 	mouseAbsolute    = 0x8000
 	mouseVirtualDesk = 0x4000
 
@@ -128,6 +129,8 @@ func (j *Injector) Inject(in proto.Input) error {
 		return j.mouse(in, f, 0)
 	case proto.KindWheel:
 		return j.mouse(in, mouseWheel, uint32(in.Arg))
+	case proto.KindWheelH:
+		return j.mouse(in, mouseHWheel, uint32(in.Arg))
 	case proto.KindKeyDown, proto.KindKeyUp:
 		// Arg: virtual-key code in the low byte, 0x100 set for an extended key.
 		return key(uint16(in.Arg&0xFF), in.Arg&0x100 != 0, in.Kind == proto.KindKeyUp)

@@ -35,12 +35,17 @@ type TextInjector interface {
 }
 
 type Options struct {
-	FPS        int           // capture rate; default 10
+	FPS int // capture rate; default 10
+	// FPSFn, when set, reports the capture rate before each frame. The host uses
+	// it to raise the frame rate briefly while a viewer is actively moving the
+	// pointer, then fall back to the configured rate to save CPU.
+	FPSFn      func() int
 	AckTimeout time.Duration // base time to wait for a frame's ack; default 1s (see frameTimeout)
 	// Check decides whether the viewer (certificate fingerprint, address, offered
 	// password) may connect.
 	Check           func(fingerprint, addr, password string) (trust.Verdict, error)
 	OnAuthed        func()                      // called once the viewer is accepted
+	OnInput         func()                      // called for each input/text message from an authenticated viewer
 	OnError         func(error)                 // non-fatal session problems
 	OnFrame         func(seq uint32, bytes int) // one frame was written to the wire
 	InputController *InputController            // shared controller for releasing inputs across sessions
@@ -144,7 +149,7 @@ func Serve(ctx context.Context, conn *quic.Conn, src Source, inj Injector, dd *p
 	text, _ := inj.(TextInjector)
 	var lastAck atomic.Uint32
 	readErr := make(chan error, 1)
-	go func() { readErr <- readControl(ctrl, input, text, dd, &lastAck) }()
+	go func() { readErr <- readControl(ctrl, input, text, dd, &lastAck, opt.OnInput) }()
 
 	w, h := src.Size()
 	cur := tile.NewFrame(w, h)
@@ -153,7 +158,9 @@ func Serve(ctx context.Context, conn *quic.Conn, src Source, inj Injector, dd *p
 	var seq uint32
 	var fl *flight
 
-	tick := time.NewTicker(time.Second / time.Duration(opt.FPS))
+	fps := opt.FPS
+	interval := time.Second / time.Duration(fps)
+	tick := time.NewTimer(interval)
 	defer tick.Stop()
 	for {
 		select {
@@ -165,6 +172,15 @@ func Serve(ctx context.Context, conn *quic.Conn, src Source, inj Injector, dd *p
 			return ctx.Err()
 		case <-tick.C:
 		}
+		if opt.FPSFn != nil {
+			if next := opt.FPSFn(); next > 0 && next != fps {
+				fps = next
+				interval = time.Second / time.Duration(fps)
+			}
+		}
+		// Reset before doing work so every early continue still schedules the next frame.
+		tick.Reset(interval)
+
 		if err := src.Grab(cur); err != nil {
 			return err
 		}
@@ -218,7 +234,7 @@ func Serve(ctx context.Context, conn *quic.Conn, src Source, inj Injector, dd *p
 	}
 }
 
-func readControl(ctrl *quic.Stream, inj Injector, text TextInjector, dd *proto.Dedup, lastAck *atomic.Uint32) error {
+func readControl(ctrl *quic.Stream, inj Injector, text TextInjector, dd *proto.Dedup, lastAck *atomic.Uint32, onInput func()) error {
 	for {
 		m, err := proto.ReadMsg(ctrl)
 		if err != nil {
@@ -228,10 +244,16 @@ func readControl(ctrl *quic.Stream, inj Injector, text TextInjector, dd *proto.D
 		case proto.MsgAck:
 			lastAck.Store(m.Seq)
 		case proto.MsgInput:
+			if onInput != nil {
+				onInput()
+			}
 			if err := runOp(ctrl, dd, m.Input.OpID, func() error { return inj.Inject(m.Input) }); err != nil {
 				return err
 			}
 		case proto.MsgText:
+			if onInput != nil {
+				onInput()
+			}
 			if err := runOp(ctrl, dd, m.OpID, func() error {
 				if text == nil {
 					return errors.New("remote: host cannot inject text")

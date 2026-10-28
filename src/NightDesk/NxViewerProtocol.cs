@@ -275,6 +275,7 @@ public static class NxViewerInputKind
     public const byte Wheel = 4;
     public const byte KeyDown = 5;
     public const byte KeyUp = 6;
+    public const byte WheelH = 7;
 }
 
 public static class NxViewerIdentity

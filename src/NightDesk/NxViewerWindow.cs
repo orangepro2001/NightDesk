@@ -115,7 +115,7 @@ public sealed class NxViewerWindow : Window
         side.Children.Add(status);
         side.Children.Add(new TextBlock
         {
-            Text = "鼠标与键盘会发送到远端。F1 显示/隐藏本栏；需发送远端 F1 时使用下方专用按钮。窗口失焦或关闭时自动释放按键和鼠标按钮。",
+            Text = "鼠标与键盘会发送到远端。F1 显示/隐藏本栏；需发送远端 F1 时使用下方专用按钮。Shift+滚轮横向滚动。窗口失焦或关闭时自动释放按键和鼠标按钮。",
             Foreground = new SolidColorBrush(Color.FromRgb(143, 167, 154)),
             FontSize = 12,
             TextWrapping = TextWrapping.Wrap,
@@ -179,6 +179,9 @@ public sealed class NxViewerWindow : Window
             {
                 connected = true;
                 overlay.Visibility = Visibility.Collapsed;
+                // The host composites its system cursor into the frame; hiding the
+                // local pointer avoids two competing cursors on the remote image.
+                screen.Cursor = Cursors.None;
                 SetStatus($"已连接 · {session?.FrameWidth}×{session?.FrameHeight} · 主机指纹 {Short(session?.HostFingerprint)}");
             });
             session.Closed += OnSessionClosed;
@@ -240,6 +243,7 @@ public sealed class NxViewerWindow : Window
         Dispatcher.BeginInvoke(() =>
         {
             connected = false;
+            screen.Cursor = Cursors.Arrow;
             overlay.Visibility = Visibility.Visible;
             overlay.Text = value.Message;
             SetStatus(value.Message, value.Failed);
@@ -378,7 +382,10 @@ public sealed class NxViewerWindow : Window
             return;
         }
         if (!connected || session is null || !TryMap(e.GetPosition(screen), out int x, out int y)) return;
-        session.PostWheel(e.Delta / 120, x, y);
+        int notches = e.Delta / 120;
+        if (notches == 0 && e.Delta != 0) notches = Math.Sign(e.Delta);
+        if ((Keyboard.Modifiers & ModifierKeys.Shift) != 0) session.PostHWheel(notches, x, y);
+        else session.PostWheel(notches, x, y);
         e.Handled = true;
     }
 

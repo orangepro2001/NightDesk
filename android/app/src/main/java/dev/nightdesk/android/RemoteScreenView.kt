@@ -32,6 +32,13 @@ class RemoteScreenView @JvmOverloads constructor(
     var lastPoint: NxPoint? = null
         private set
 
+    var onViewportChanged: ((Int, Int) -> Unit)? = null
+
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+        super.onSizeChanged(w, h, oldw, oldh)
+        onViewportChanged?.invoke(w, h)
+    }
+
     fun beginFrame(width: Int, height: Int) {
         if (width <= 0 || height <= 0 || width > 16384 || height > 16384) return
         synchronized(lock) {

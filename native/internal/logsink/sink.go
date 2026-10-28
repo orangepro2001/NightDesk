@@ -26,7 +26,7 @@ func New(logger *log.Logger) *Sink { return &Sink{log: logger} }
 // Inject implements remote.Injector.
 func (s *Sink) Inject(in proto.Input) error {
 	desc := fmt.Sprintf("op=%d kind=%d x=%d y=%d arg=%d", in.OpID, in.Kind, in.X, in.Y, in.Arg)
-	if in.Kind < proto.KindMouseMove || in.Kind > proto.KindKeyUp {
+	if in.Kind < proto.KindMouseMove || in.Kind > proto.KindWheelH {
 		return fmt.Errorf("logsink: unknown input kind %d", in.Kind)
 	}
 	s.record("input " + desc)

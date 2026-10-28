@@ -2,10 +2,18 @@
 
 更新时间：2026-10-28（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前实现：Windows 1.6.3 / nx-host 0.2.1 / Android 1.3.3；侧栏实现提交 `e75618d` 已推送到 `origin/main`
-最新阶段交接：`docs\20261028-065453-release-directory-cleanup-handoff.md`
+当前实现：Windows 1.6.4 / nx-host 0.2.2 / Android 1.3.4；本轮远控交互升级已构建并发布，尚未创建 Git 提交
+最新阶段交接：`docs\20261028-093200-mobile-remote-ux-1.6.4-1.3.4-release-handoff.md`
 
-## 最新阶段：发行目录清理与最新分发保留（2026-10-28）
+## 最新阶段：远控交互升级与双端发布（2026-10-28 09:32 KST）
+
+- 已发布 Windows 1.6.4 / 10604、nx-host 0.2.2 与 Android 1.3.4 / code 13；AI 更新源 healthz=`ok android=ok windows=ok`，两端 HTTPS manifest、HEAD 长度和实际下载 SHA-256 均与本地一致。
+- Android 新增直接定位/触摸板双鼠标模式、指针加速、双指轻点右键、横纵向滚动与惯性、输入合并、实时分辨率/FPS 与触觉反馈；新增/修改 `NxPointer.kt`、`NxTouchGesture.kt`、`RemoteActivity.kt`、`RemoteTouchControls.kt` 和 `mobile.aar`。
+- Windows 新增输入期间自适应 30 FPS、横向滚轮协议与注入；viewer 支持 Shift+滚轮并隐藏远端画面内本机指针。
+- 验证：Windows 216 项断言、Release 0 warnings/0 errors、`-live-update` 校验 1.6.4/10604；Go test/vet/race 与 Windows cross-build 通过；Android 46 项 JVM、6 项仪器测试、lint 0 errors；模拟器从 code 12 通过线上 UpdateFlow 下载并校验 code 13 后安装成功。
+- 生产 Windows 未替换或重启；真实 Android 真机 + 隔离 Windows 主机的 GDI/`SendInput`、DPI/多屏和 tailnet 实时手感仍需现场验收。版本哈希、产物路径、清单备份和复建命令见最新 timestamped handoff。
+
+## 历史阶段：发行目录清理与最新分发保留（2026-10-28）
 
 - 本机 `artifacts` 的正式发行文件现在只保留 Android `nightdesk-1.3.3.apk`、Windows `nightdesk-windows-1.6.3.zip` 和 `win-x64-1.6.3`；旧最终 APK、旧 Windows ZIP、旧正式 `win-x64-*` 发布目录已删除。
 - AI `/home/tony/dev/nightdesk-update-feed` 现在只保留 `nightdesk-12.apk`、`nightdesk-1.3.3.apk -> nightdesk-12.apk` 和 `windows/nightdesk-windows-1.6.3.zip`。旧 APK/ZIP 及旧版本别名已删除。

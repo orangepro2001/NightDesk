@@ -233,6 +233,12 @@ public sealed class NxViewerSession : IAsyncDisposable
         QueueInput(NxViewerInputKind.Wheel, x, y, delta, receipt: false);
     }
 
+    public void PostHWheel(int delta, int x, int y)
+    {
+        lock (inputGate) { lastX = x; lastY = y; }
+        QueueInput(NxViewerInputKind.WheelH, x, y, delta, receipt: false);
+    }
+
     public void PostKey(bool down, int virtualKey)
     {
         lock (inputGate)

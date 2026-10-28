@@ -38,7 +38,7 @@ import (
 	"github.com/orangepro2001/nightdesk/native/internal/trust"
 )
 
-const version = "0.2.1"
+const version = "0.2.2"
 
 const (
 	pairingWindow = 5 * time.Minute
@@ -295,9 +295,27 @@ type host struct {
 	controller string
 	lastFrame  atomic.Int64
 	frames     atomic.Uint64
+	// inputActiveUntil keeps capture smooth while the viewer is moving the
+	// pointer, then lets the host fall back to the configured idle rate.
+	inputActiveUntil atomic.Int64
 }
 
 func (h *host) stop() { h.cancel() }
+
+const (
+	interactiveFPS    = 30
+	activeInputWindow = 1200 * time.Millisecond
+)
+
+// captureFPS raises the capture rate briefly after viewer input so pointer
+// movement feels immediate even when the configured idle rate is low.
+func (h *host) captureFPS() int {
+	configured := int(h.fps.Load())
+	if configured < interactiveFPS && time.Now().UnixNano() < h.inputActiveUntil.Load() {
+		return interactiveFPS
+	}
+	return configured
+}
 
 func (h *host) openPairing(d time.Duration) {
 	code := randomCode()
@@ -346,8 +364,12 @@ func (h *host) acceptLoop(ctx context.Context, ln *quic.Listener, src remote.Sou
 func (h *host) serve(ctx context.Context, conn *quic.Conn, src remote.Source, inj remote.Injector, dd *proto.Dedup, input *remote.InputController) {
 	addr := conn.RemoteAddr().String()
 	err := remote.Serve(ctx, conn, src, inj, dd, remote.Options{
-		FPS:             int(h.fps.Load()),
-		Check:           h.check,
+		FPS:   int(h.fps.Load()),
+		FPSFn: func() int { return h.captureFPS() },
+		Check: h.check,
+		OnInput: func() {
+			h.inputActiveUntil.Store(time.Now().Add(activeInputWindow).UnixNano())
+		},
 		InputController: input,
 		OnAuthed: func() {
 			h.mu.Lock()

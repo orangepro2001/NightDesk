@@ -10,6 +10,7 @@ import android.os.Looper
 import android.os.SystemClock
 import android.text.InputType
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
@@ -26,6 +27,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowInsetsCompat
 import java.io.File
 import java.util.concurrent.Executors
+import kotlin.math.hypot
 
 class RemoteActivity : ComponentActivity() {
     private val io = Executors.newSingleThreadExecutor()
@@ -39,33 +41,60 @@ class RemoteActivity : ComponentActivity() {
     @Volatile private var destroyed = false
     @Volatile private var lastFrameWidth = 0
     @Volatile private var lastFrameHeight = 0
+    @Volatile private var frameCount = 0
     private var persistedFrameWidth = -1
     private var persistedFrameHeight = -1
     private val timeoutHandler = Handler(Looper.getMainLooper())
     private val gestureHandler = Handler(Looper.getMainLooper())
+    private val flingHandler = Handler(Looper.getMainLooper())
+    private val statsHandler = Handler(Looper.getMainLooper())
     private lateinit var touchGesture: NxTouchGesture
+    private lateinit var pointer: NxPointer
+    private lateinit var preferences: NxRemotePreferences
+    private var mouseMode = NxMouseMode.Direct
     private var longPressTimeoutMillis = NxTouchGesture.DefaultLongPressMillis
+    private var wheelStepPx = 28f
     private var currentCode = ""
     private var pairingDialogShowing = false
     private var textDialogShowing = false
     private var touchSequence = 0L
     private val localKeys = mutableSetOf<Int>()
 
+    private val moveLock = Any()
+    private var pendingMove: NxPoint? = null
+    private var moveScheduled = false
+
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+    private var lastTouchAt = 0L
+    private var flingActive = false
+    private var flingVelocityX = 0f
+    private var flingVelocityY = 0f
+    private var flingAccumulatorX = 0f
+    private var flingAccumulatorY = 0f
+    private var lastFlingAt = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val touchConfig = ViewConfiguration.get(this)
         longPressTimeoutMillis = ViewConfiguration.getLongPressTimeout().toLong()
+        wheelStepPx = dp(28).toFloat()
         touchGesture = NxTouchGesture(
             longPressMillis = longPressTimeoutMillis,
             moveSlopPx = touchConfig.scaledTouchSlop.toFloat(),
-            wheelStepPx = dp(28).toFloat()
+            wheelStepPx = wheelStepPx,
+            scrollStartSlopPx = touchConfig.scaledTouchSlop * 1.5f
         )
+        preferences = NxRemotePreferences(this)
+        mouseMode = preferences.mouseMode
+        pointer = NxPointer().apply { modeChanged(mouseMode) }
         store = NxProfileStore(this)
         host = resolveHost(intent) ?: return
         currentCode = intent.getStringExtra(EXTRA_CODE).orEmpty()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         buildUi()
         connect(currentCode)
+        statsHandler.postDelayed(statsRunnable, 1000)
     }
 
     private fun resolveHost(source: Intent): NxHost? {
@@ -99,6 +128,7 @@ class RemoteActivity : ComponentActivity() {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ))
+        screen.onViewportChanged = { width, height -> pointer.onViewSize(width, height) }
         screen.setOnTouchListener(::onRemoteTouch)
 
         touchControls = RemoteTouchControls(this, ::onSessionControl)
@@ -107,15 +137,19 @@ class RemoteActivity : ComponentActivity() {
             dp(64),
             Gravity.END or Gravity.CENTER_VERTICAL
         ))
+        touchControls.setMouseMode(mouseMode)
     }
 
     private fun onSessionControl(action: RemoteControlAction, anchor: View) {
-        if (action != RemoteControlAction.Toggle) touchControls.collapseMenu()
+        if (action != RemoteControlAction.Toggle && action != RemoteControlAction.ToggleMouseMode) {
+            touchControls.collapseMenu()
+        }
         when (action) {
             RemoteControlAction.Toggle -> {
                 releaseAll()
                 touchControls.toggleMenu()
             }
+            RemoteControlAction.ToggleMouseMode -> toggleMouseMode()
             RemoteControlAction.Keyboard -> showTextDialog()
             RemoteControlAction.SpecialKeys -> showKeyMenu(touchControls.menuButton)
             RemoteControlAction.RightClick -> rightClick()
@@ -124,6 +158,14 @@ class RemoteActivity : ComponentActivity() {
             RemoteControlAction.PairAgain -> showPairingCodeDialog()
             RemoteControlAction.Disconnect -> finish()
         }
+    }
+
+    private fun toggleMouseMode() {
+        releaseAll()
+        mouseMode = if (mouseMode == NxMouseMode.Direct) NxMouseMode.Trackpad else NxMouseMode.Direct
+        preferences.mouseMode = mouseMode
+        pointer.modeChanged(mouseMode)
+        touchControls.setMouseMode(mouseMode)
     }
 
     private fun connect(pairingCode: String) {
@@ -201,6 +243,8 @@ class RemoteActivity : ComponentActivity() {
             if (w !in 1..16384 || h !in 1..16384) return
             lastFrameWidth = w
             lastFrameHeight = h
+            frameCount++
+            pointer.onFrame(w, h)
             screen.beginFrame(w, h)
         }
 
@@ -411,7 +455,8 @@ class RemoteActivity : ComponentActivity() {
     }
 
     private fun rightClick() {
-        val point = screen.lastPoint ?: screen.centerPoint() ?: return
+        val point = pointer.cursorPoint() ?: screen.centerPoint() ?: return
+        cancelFling()
         io.execute {
             try {
                 val active = session ?: throw IllegalStateException("尚未连接")
@@ -440,11 +485,12 @@ class RemoteActivity : ComponentActivity() {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 cancelLongPress()
+                cancelFling()
                 touchSequence++
-                val point = screen.mapToHost(event.x, event.y) ?: run {
-                    sendGestureActions(touchGesture.onCancel())
-                    return true
-                }
+                lastTouchX = event.x
+                lastTouchY = event.y
+                lastTouchAt = now
+                val point = hostPointAt(event.x, event.y)
                 sendGestureActions(touchGesture.onDown(event.x, event.y, point, now))
                 val sequence = touchSequence
                 gestureHandler.postDelayed({
@@ -455,14 +501,15 @@ class RemoteActivity : ComponentActivity() {
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 cancelLongPress()
+                cancelFling()
                 touchSequence++
-                sendGestureActions(touchGesture.onPointerDown(centroidY(event)))
+                sendGestureActions(touchGesture.onPointerDown(centroidX(event), centroidY(event), now))
             }
             MotionEvent.ACTION_MOVE -> {
-                if (event.pointerCount >= 2 && touchGesture.isScrolling) {
-                    sendGestureActions(touchGesture.onTwoFingerMove(centroidY(event)))
+                if (event.pointerCount >= 2 && touchGesture.isTwoFingerGesture) {
+                    sendGestureActions(touchGesture.onTwoFingerMove(centroidX(event), centroidY(event), now))
                 } else if (event.pointerCount == 1) {
-                    val point = screen.mapToHost(event.x, event.y)
+                    val point = singleFingerPoint(event, now)
                     sendGestureActions(touchGesture.onMove(event.x, event.y, point, now))
                     if (!touchGesture.isTapPending) cancelLongPress()
                 }
@@ -470,12 +517,12 @@ class RemoteActivity : ComponentActivity() {
             MotionEvent.ACTION_POINTER_UP -> {
                 cancelLongPress()
                 touchSequence++
-                sendGestureActions(touchGesture.onPointerUp())
+                sendGestureActions(touchGesture.onPointerUp(now, event.pointerCount - 1))
             }
             MotionEvent.ACTION_UP -> {
                 cancelLongPress()
                 touchSequence++
-                sendGestureActions(touchGesture.onUp(screen.mapToHost(event.x, event.y)))
+                sendGestureActions(touchGesture.onUp(hostPointAt(event.x, event.y)))
             }
             MotionEvent.ACTION_CANCEL -> {
                 cancelLongPress()
@@ -491,6 +538,29 @@ class RemoteActivity : ComponentActivity() {
         return true
     }
 
+    private fun hostPointAt(x: Float, y: Float): NxPoint? =
+        if (mouseMode == NxMouseMode.Trackpad) pointer.cursorPoint() else pointer.directPoint(x, y)
+
+    private fun singleFingerPoint(event: MotionEvent, now: Long): NxPoint? {
+        if (mouseMode != NxMouseMode.Trackpad) return pointer.directPoint(event.x, event.y)
+        val dx = event.x - lastTouchX
+        val dy = event.y - lastTouchY
+        val elapsed = (now - lastTouchAt).coerceIn(1L, 100L)
+        lastTouchX = event.x
+        lastTouchY = event.y
+        lastTouchAt = now
+        if (dx == 0f && dy == 0f) return pointer.cursorPoint()
+        return pointer.moveRelativeBy(dx, dy, elapsed) ?: pointer.cursorPoint()
+    }
+
+    private fun centroidX(event: MotionEvent): Float {
+        val count = minOf(2, event.pointerCount)
+        if (count == 0) return 0f
+        var total = 0f
+        for (index in 0 until count) total += event.getX(index)
+        return total / count
+    }
+
     private fun centroidY(event: MotionEvent): Float {
         val count = minOf(2, event.pointerCount)
         if (count == 0) return 0f
@@ -501,10 +571,24 @@ class RemoteActivity : ComponentActivity() {
 
     private fun sendGestureActions(actions: List<NxTouchAction>) {
         if (actions.isEmpty()) return
+        var onlyMove: NxTouchAction.Move? = null
+        if (actions.size == 1 && actions[0] is NxTouchAction.Move) {
+            onlyMove = actions[0] as NxTouchAction.Move
+        }
+        if (onlyMove != null) {
+            enqueueMove(NxPoint(onlyMove.x, onlyMove.y))
+            return
+        }
+        val fling = actions.filterIsInstance<NxTouchAction.Fling>().firstOrNull()
+        if (fling != null) startFling(fling)
         if (actions.any { it is NxTouchAction.BeginDrag }) {
             runOnUiThread { if (!destroyed && ::touchControls.isInitialized) touchControls.showDragging() }
+            haptic(HapticFeedbackConstants.LONG_PRESS)
         } else if (actions.any { it is NxTouchAction.EndDrag || it is NxTouchAction.ReleaseAll }) {
             runOnUiThread { if (!destroyed && ::touchControls.isInitialized) touchControls.showDefaultHint() }
+        }
+        if (actions.any { it is NxTouchAction.Click || it is NxTouchAction.RightClick }) {
+            haptic(HapticFeedbackConstants.VIRTUAL_KEY)
         }
         io.execute {
             val active = session
@@ -518,6 +602,11 @@ class RemoteActivity : ComponentActivity() {
                             active.mouseDown(0L)
                             active.mouseUp(0L)
                         }
+                        is NxTouchAction.RightClick -> {
+                            active.move(action.x.toLong(), action.y.toLong())
+                            active.mouseDown(1L)
+                            active.mouseUp(1L)
+                        }
                         is NxTouchAction.BeginDrag -> {
                             active.move(action.x.toLong(), action.y.toLong())
                             active.mouseDown(0L)
@@ -527,6 +616,8 @@ class RemoteActivity : ComponentActivity() {
                             active.mouseUp(0L)
                         }
                         is NxTouchAction.Scroll -> active.wheel(action.delta.toLong())
+                        is NxTouchAction.ScrollH -> active.wheelH(action.delta.toLong())
+                        is NxTouchAction.Fling -> Unit
                         NxTouchAction.ReleaseAll -> active.releaseAll()
                     }
                 }
@@ -536,10 +627,105 @@ class RemoteActivity : ComponentActivity() {
         }
     }
 
+    private fun enqueueMove(point: NxPoint) {
+        synchronized(moveLock) {
+            pendingMove = point
+            if (moveScheduled) return
+            moveScheduled = true
+        }
+        io.execute {
+            val next = synchronized(moveLock) {
+                val value = pendingMove
+                pendingMove = null
+                moveScheduled = false
+                value
+            } ?: return@execute
+            runCatching { session?.move(next.x.toLong(), next.y.toLong()) }
+        }
+    }
+
+    private fun startFling(action: NxTouchAction.Fling) {
+        val speed = hypot(action.velocityX.toDouble(), action.velocityY.toDouble()).toFloat()
+        if (speed < NxTouchGesture.MinFlingSpeed) return
+        flingVelocityX = action.velocityX.coerceIn(-MaxFlingVelocity, MaxFlingVelocity)
+        flingVelocityY = action.velocityY.coerceIn(-MaxFlingVelocity, MaxFlingVelocity)
+        flingAccumulatorX = 0f
+        flingAccumulatorY = 0f
+        lastFlingAt = SystemClock.uptimeMillis()
+        if (!flingActive) {
+            flingActive = true
+            flingHandler.post(flingRunnable)
+        }
+    }
+
+    private fun cancelFling() {
+        flingActive = false
+        flingHandler.removeCallbacks(flingRunnable)
+        flingVelocityX = 0f
+        flingVelocityY = 0f
+        flingAccumulatorX = 0f
+        flingAccumulatorY = 0f
+    }
+
+    private val flingRunnable = object : Runnable {
+        override fun run() {
+            if (!flingActive || destroyed) return
+            val now = SystemClock.uptimeMillis()
+            val elapsed = (now - lastFlingAt).coerceIn(1L, 40L)
+            lastFlingAt = now
+            flingAccumulatorX += flingVelocityX * elapsed * FlingWheelScale
+            flingAccumulatorY += flingVelocityY * elapsed * FlingWheelScale
+            val actions = ArrayList<NxTouchAction>(2)
+            val vertical = (flingAccumulatorY / wheelStepPx).toInt()
+            if (vertical != 0) {
+                flingAccumulatorY -= vertical * wheelStepPx
+                actions += NxTouchAction.Scroll(vertical * NxTouchGesture.WheelDelta)
+            }
+            val horizontal = (flingAccumulatorX / wheelStepPx).toInt()
+            if (horizontal != 0) {
+                flingAccumulatorX -= horizontal * wheelStepPx
+                actions += NxTouchAction.ScrollH(horizontal * NxTouchGesture.WheelDelta)
+            }
+            if (actions.isNotEmpty()) sendGestureActions(actions)
+            val decay = Math.pow(0.93, elapsed / 16.0).toFloat()
+            flingVelocityX *= decay
+            flingVelocityY *= decay
+            if (hypot(flingVelocityX.toDouble(), flingVelocityY.toDouble()) >= MinFlingVelocity) {
+                flingHandler.postDelayed(this, 16)
+            } else {
+                flingActive = false
+            }
+        }
+    }
+
+    private fun haptic(constant: Int) {
+        if (::screen.isInitialized) screen.performHapticFeedback(constant)
+    }
+
     private fun releaseAll() {
         cancelLongPress()
+        cancelFling()
         touchSequence++
         sendGestureActions(touchGesture.onReleaseAll())
+    }
+
+    private val statsRunnable = object : Runnable {
+        override fun run() {
+            if (destroyed) return
+            val snapshot = connectionState.snapshot()
+            if (snapshot.phase == NxConnectionPhase.Streaming) {
+                val frames = frameCount
+                frameCount = 0
+                val width = lastFrameWidth
+                val height = lastFrameHeight
+                if (width > 0 && height > 0) {
+                    touchControls.setStatus("已连接 · ${width}×${height} · ${frames} FPS")
+                }
+            } else {
+                frameCount = 0
+            }
+            statsHandler.postDelayed(this, 1000)
+        }
     }
 
     private fun cancelLongPress() {
@@ -550,6 +736,7 @@ class RemoteActivity : ComponentActivity() {
         val previous = session
         session = null
         cancelLongPress()
+        cancelFling()
         touchSequence++
         touchGesture.onReleaseAll()
         if (clearScreen && ::screen.isInitialized) screen.clear()
@@ -622,6 +809,7 @@ class RemoteActivity : ComponentActivity() {
     override fun onStop() {
         timeoutHandler.removeCallbacksAndMessages(null)
         localKeys.clear()
+        cancelFling()
         val attempt = connectionState.snapshot().attempt
         if (attempt > 0 && connectionState.background(attempt)) {
             // Invalidate every late Go callback and release held mouse buttons/keys before the
@@ -635,8 +823,10 @@ class RemoteActivity : ComponentActivity() {
 
     override fun onDestroy() {
         timeoutHandler.removeCallbacksAndMessages(null)
+        statsHandler.removeCallbacksAndMessages(null)
         localKeys.clear()
         gestureHandler.removeCallbacksAndMessages(null)
+        flingHandler.removeCallbacksAndMessages(null)
         val attempt = connectionState.snapshot().attempt
         if (attempt > 0) connectionState.background(attempt)
         destroyed = true
@@ -650,6 +840,9 @@ class RemoteActivity : ComponentActivity() {
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
 
     companion object {
+        private const val MaxFlingVelocity = 2.2f
+        private const val MinFlingVelocity = 0.04f
+        private const val FlingWheelScale = 0.5f
         private const val EXTRA_ADDR = "nx.addr"
         private const val EXTRA_FINGERPRINT = "nx.fingerprint"
         private const val EXTRA_NAME = "nx.name"
