@@ -93,6 +93,9 @@ ssh AI 'git -C /home/tony/dev/NightDesk log -1 --format="%H %s"'
 
 触发：推送到 `main`、任意 PR、以及 Actions 页面的 *Run workflow*（`workflow_dispatch`）。
 
+并发策略：同一分支只保留最新一次运行（`concurrency` + `cancel-in-progress`）。**连续推送会取消上一次运行**，
+因此 artifact 永远对应最新提交；需要留档某次结果时，先等它跑完再推，或用 *Run workflow* 手动补跑该提交。
+
 ### 4.1 `windows` 作业做什么
 
 1. `git config --global core.autocrlf false`——两台开发机都用 `core.autocrlf=input`（工作树 LF），先钉住换行，避免 CI 与本地基线不一致。
