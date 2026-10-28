@@ -106,6 +106,10 @@ ssh AI 'git -C /home/tony/dev/NightDesk log -1 --format="%H %s"'
    2026-10-28 在本仓库首次实跑的结果：`216 tests passed. No display state changed.`，
    紧接的发布步骤打印 `ProductVersion: 1.6.4+<提交号>` 与 `nx-host version: nx-host 0.2.2`。
    **整个 Windows 作业约 70–85 秒**（多次运行实测）。
+
+**时间敏感处的处理**：`NxHostClient` 只给 sidecar **15 秒**报告 ready。冷启动的 runner 上首次执行这个 7.9 MB 的
+PE 会被杀毒/文件索引拖慢，2026-10-28 实测因此偶发失败过一次。所以工作流在跑断言前先执行
+`nx-host.exe -version`（同时是冒烟检查与文件缓存预热），断言失败还会**自动重试一次**——真实回归会连续失败两次。
 5. `tools/publish-windows.ps1 -Dotnet dotnet`——自包含发布，并**真正执行 `nx-host.exe -version`**（这是 Linux 上做不到的 smoke check）。
 6. `tools/package-windows.ps1`——按 csproj 的 `<Version>` 自动算 versionCode，打出更新 ZIP。
 7. 上传 artifact `nightdesk-windows-<版本>`。
@@ -409,6 +413,7 @@ git -C /mnt/c/dev/NightDesk pull --ff-only
 | gomobile AAR 不可字节复现 | 同 §7.6 | 只在 Go 侧改动后重建，并重跑全部 Android 验证 |
 | `nx-host.exe` / `mobile.aar` 入库 | 二进制与源码可能不同步 | 改 Go 后必须重建并提交，别只改源码 |
 | CI 进不了 tailnet | `-live-update`、私网服务不能上 CI | 放在 AI 主机或本机执行 |
+| 冷 runner 上 sidecar 偶发超时 | `NxHostClient` 15 秒就绪窗口可能被冷启动拖破，断言套件失败一次 | CI 已预热二进制并自动重试一次；连续两次失败才判红 |
 | 仓库公开 | 任何提交、artifact 都对外可见 | 密钥、令牌、诊断文件绝不入库（`.gitignore` 已覆盖 `settings.json`、`diagnostics*.json`） |
 
 ## 12. 实测记录
