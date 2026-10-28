@@ -279,7 +279,7 @@ ssh AI 'cd /home/tony/dev/NightDesk/native && gomobile bind -target=android -and
 | Windows 全部断言（1.6.4 为 216 项） | **CI** / 本机兜底 | CI 自动；本机 `dotnet run --project tests/NightDesk.Tests -c Release` | 最后一行 `216 tests passed.` | CI 约 1 分钟 |
 | Go 单元 + vet | AI 主机 | `cd native && go test ./... && go vet ./...` | 9 个包 `ok`，vet 无输出 | 约 10 秒 |
 | Windows 交叉构建 | AI 主机 | `tools/ai/build-windows.sh` | 两个 EXE + ZIP 与各自 SHA-256 | 约 15 秒 |
-| Android 单元测试 | AI / CI | `build-ai.sh` 内含 `testDebugUnitTest` | 46 个测试，0 失败 | 约 2 分钟（含 lint/打包） |
+| Android 单元测试 | AI / CI | `build-ai.sh` 内含 `testDebugUnitTest` | 46 个测试，0 失败 | 2–7 分钟（含 lint/打包；与模拟器争 CPU 时会接近上限） |
 | Android lint | AI / CI | `build-ai.sh` 内含 `lintRelease` | 0 error（当前 22 warning） | 同上 |
 | Android 仪器测试 | AI 主机 | `android/scripts/run-instrumented.sh` | 4 个类 6 个测试 OK | 约 1 分钟 |
 | Android 仪器测试构建 | AI 主机 | `android/scripts/build-androidtest.sh` | `ANDROIDTEST_OK` | 约 10 秒 |
@@ -423,6 +423,10 @@ git -C /mnt/c/dev/NightDesk pull --ff-only
 | `build-ai.sh`（单元 + lint + debug + release） | 1 分 51 秒；46 单元测试通过；lint 0 error / 22 warning |
 | `run-instrumented.sh`（4 类 6 测试） | 全部 OK，含 `UpdateFlowInstrumentedTest` 通过线上更新源校验 |
 | release APK | versionCode 13 / 1.3.4，55,112,556 字节，签名证书 SHA-256 与线上一致 |
+
+同一天用 `tools/ai/verify.sh` 一条命令跑完整链路（Go + Windows 交叉构建 + Android）也全绿；其中 Android 阶段
+耗时 **7 分 04 秒**——当时 `nightdesk-api35` 模拟器正在运行并占用 6 个核。纯软件模拟的模拟器与 Gradle 抢 CPU 是
+这台机器的常态，排期时按 7 分钟估。
 
 ### 12.1 GitHub CI 首次实跑（2026-10-28，公开仓库标准 runner）
 
