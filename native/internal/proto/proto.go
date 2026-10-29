@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 )
 
@@ -18,9 +19,12 @@ const (
 	MsgHello byte = 1 // pwLen u8, password (may be empty)
 	MsgAck   byte = 2 // seq u32
 	MsgInput byte = 3 // opID u64, kind u8, x i32, y i32, arg i32
+
 	// MsgText commits literal Unicode text, bypassing the keyboard layout. It
 	// carries opID u64, byte length u16 and that many bytes of UTF-8. The host
-	// reports the result with a receipt like any other input.
+	// reports the result with a receipt like any other input. A v0 extension
+	// that the NightDesk clients already send; hosts built before it do not
+	// know the type and end the session, which is why v1 negotiates it.
 	MsgText byte = 4
 )
 
@@ -35,11 +39,18 @@ const (
 	KindMouseMove byte = 1 // x, y in host pixels
 	KindMouseDown byte = 2 // arg: 0 left, 1 right, 2 middle
 	KindMouseUp   byte = 3
-	KindWheel     byte = 4 // arg: vertical delta in 1/120 notches
+	KindWheel     byte = 4 // arg: vertical delta in 1/120 notches (positive is away from the user)
 	KindKeyDown   byte = 5 // arg: Windows virtual-key code
 	KindKeyUp     byte = 6
-	KindWheelH    byte = 7 // arg: horizontal delta in 1/120 notches
+	KindWheelH    byte = 7 // arg: horizontal delta in 1/120 notches (positive is right)
 )
+
+// NoMove, as both X and Y of a mouse button or wheel Input, means "act where the
+// pointer is now": the host does not move it first. A host uses it when it lets go
+// of buttons a viewer left pressed, so that cleaning up does not drag the pointer
+// to where the button went down. A viewer's own events always carry real
+// coordinates.
+const NoMove int32 = -1 << 31
 
 // Receipt statuses.
 const (
@@ -63,6 +74,10 @@ type Msg struct {
 	Input    Input  // MsgInput
 	OpID     uint64 // MsgText
 	Text     string // MsgText
+	Version  uint16 // MsgHello in v1
+	Caps     Caps   // MsgHello in v1
+	Name     string // MsgHello in v1
+	W, H     uint16 // V1ClientViewSize
 }
 
 func WriteHello(w io.Writer, password string) error {
@@ -89,6 +104,8 @@ func WriteInput(w io.Writer, in Input) error {
 	return write(w, b)
 }
 
+// WriteText sends text as one MsgText. The caller splits anything longer than
+// MaxTextLen bytes, at a character boundary.
 func WriteText(w io.Writer, opID uint64, text string) error {
 	if len(text) > MaxTextLen {
 		return errors.New("proto: text too long")
@@ -166,7 +183,8 @@ func ReadMsg(r io.Reader) (Msg, error) {
 		if _, err := io.ReadFull(r, b); err != nil {
 			return m, err
 		}
-		m.Text = string(b)
+		// Whatever the peer sent, the injector only ever sees valid UTF-8.
+		m.Text = strings.ToValidUTF8(string(b), "\uFFFD")
 	default:
 		return m, errors.New("proto: unknown message type")
 	}
@@ -193,6 +211,22 @@ type FrameHeader struct {
 
 const FrameHeaderSize = 8
 
+// A viewer allocates a frame buffer from the size a host announces, so the
+// announcement is bounded. 8K (7680x4320, 33.2M pixels) fits; anything larger
+// than this is treated as a protocol violation rather than allocated.
+const (
+	MaxFrameDim    = 16384   // pixels along either side
+	MaxFramePixels = 1 << 25 // width * height
+)
+
+// ErrFrameSize is returned for a frame size outside the limits above.
+var ErrFrameSize = errors.New("proto: frame size out of range")
+
+// ValidFrameSize reports whether a w x h frame is within the limits.
+func ValidFrameSize(w, h int) bool {
+	return w > 0 && h > 0 && w <= MaxFrameDim && h <= MaxFrameDim && w*h <= MaxFramePixels
+}
+
 func (h FrameHeader) Marshal() []byte {
 	b := make([]byte, FrameHeaderSize)
 	binary.LittleEndian.PutUint32(b[0:], h.Seq)
@@ -205,11 +239,15 @@ func ParseFrameHeader(b []byte) (FrameHeader, error) {
 	if len(b) < FrameHeaderSize {
 		return FrameHeader{}, errors.New("proto: short frame header")
 	}
-	return FrameHeader{
+	h := FrameHeader{
 		Seq: binary.LittleEndian.Uint32(b[0:]),
 		W:   binary.LittleEndian.Uint16(b[4:]),
 		H:   binary.LittleEndian.Uint16(b[6:]),
-	}, nil
+	}
+	if !ValidFrameSize(int(h.W), int(h.H)) {
+		return FrameHeader{}, ErrFrameSize
+	}
+	return h, nil
 }
 
 const dedupSize = 1024

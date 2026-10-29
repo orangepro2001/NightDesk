@@ -1,10 +1,19 @@
 # NightDesk 交接文档
 
-更新时间：2026-10-28（Asia/Seoul）
+更新时间：2026-10-29（Asia/Seoul）
 目标平台：Windows x64（.NET 10 / WPF）+ Android（Kotlin，minSdk 29 / target 35）
-当前实现：Windows 1.6.4 / nx-host 0.2.2 / Android 1.3.4；本轮远控交互升级已提交（`a55ad8e`）并发布
-最新阶段交接：`docs\20261028-093200-mobile-remote-ux-1.6.4-1.3.4-release-handoff.md`
+当前已发布版本：Windows 1.6.4 / nx-host 0.2.2 / Android 1.3.4（本轮 go-nx 源码集成尚未发布）
+最新源码阶段交接：`docs\20261029-200332-go-nx-0.9.0-integration-handoff.md`
+最新发布阶段交接：`docs\20261028-093200-mobile-remote-ux-1.6.4-1.3.4-release-handoff.md`
 开发与测试协同：`docs\20261028-123000-dev-test-collaboration.md`（AI 主机编译、GitHub CI 跑 Windows 断言、本机验收）
+
+## 最新源码阶段：集成 go-nx 0.9.0 上游更新（2026-10-29）
+
+- NightDesk `native/` 已移植 `orangepro2001/go-nx` 上游 `main`（`ba8b32869bc49020ca4951f0b9713632a2c671e4`，对应 go-nx 0.9.0）；保留 NightDesk 模块路径、WPF/Android 应用边界和旧 viewer 兼容。已重建并验证 `mobile.aar`、`nx-host.exe` 与 `nx-probe.exe`。
+- WPF viewer 仍使用协议 v0，sidecar 继续在 v0 会话合成屏幕内指针；Android viewer 通过 v1 请求合成指针，回退到 NightDesk v0 host 时保留旧文本/横向滚轮扩展。WPF trusted-device 解析同时兼容旧 JSON 对象与上游数组，并通过附加 `trustedDetails` 保留 endpoint/配对时间。
+- viewer 尺寸切换 Parsec VDD 未接入：NightDesk 已有独立显示拓扑/VDD 生命周期；nx-host 不注册 `OnViewSize`、不声明 `CapVirtualDisplay`，避免两个控制方争用显示器状态。
+- Go（全量/race/vet/Windows 交叉构建）、Windows 219 项断言、Android 46 项 JVM 测试、lint、5 项安全仪器测试和合成 QUIC 探针通过。此次没有发布 APK/Windows 更新包或改版本号。
+- 物理 Windows 抓屏/输入、真机端到端、被控屏幕物理光标闪烁、不同 DPI/多屏仍未验收；此阶段只使用 pattern/log 合成模式，不操作生产显示状态。具体文件、hash、复建命令见源码阶段交接文档。
 
 ## 最新阶段：远控交互升级与双端发布（2026-10-28 09:32 KST）
 

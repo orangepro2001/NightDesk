@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -40,8 +41,9 @@ func hostsStore(t *testing.T) *trust.Store {
 func fp(id tls.Certificate) string { return trust.Fingerprint(id.Certificate[0]) }
 
 type fakeSource struct {
-	mu sync.Mutex
-	f  *tile.Frame
+	mu    sync.Mutex
+	f     *tile.Frame
+	grabs atomic.Int64 // how many times the host has looked at the screen
 }
 
 func newFakeSource(w, h int) *fakeSource { return &fakeSource{f: tile.NewFrame(w, h)} }
@@ -49,6 +51,7 @@ func newFakeSource(w, h int) *fakeSource { return &fakeSource{f: tile.NewFrame(w
 func (s *fakeSource) Size() (int, int) { return s.f.W, s.f.H }
 
 func (s *fakeSource) Grab(dst *tile.Frame) error {
+	s.grabs.Add(1)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	copy(dst.Pix, s.f.Pix)
@@ -63,8 +66,23 @@ func (s *fakeSource) paint(x, y int, v byte) {
 }
 
 type fakeInjector struct {
-	mu   sync.Mutex
-	seen []proto.Input
+	mu    sync.Mutex
+	seen  []proto.Input
+	texts []string
+}
+
+// InjectText makes fakeInjector a TextInjector.
+func (i *fakeInjector) InjectText(s string) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.texts = append(i.texts, s)
+	return nil
+}
+
+func (i *fakeInjector) typed() []string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return append([]string(nil), i.texts...)
 }
 
 func (i *fakeInjector) Inject(in proto.Input) error {
@@ -94,6 +112,7 @@ type rig struct {
 	recv    map[uint64]byte
 	served  chan error
 	dialErr error
+	addr    string // where the host listens
 }
 
 // start runs a host and connects a viewer. The host trusts the viewer's
@@ -114,7 +133,7 @@ func startWith(t *testing.T, opt Options, hostID, viewerID tls.Certificate, host
 	}
 	t.Cleanup(func() { ln.Close() })
 
-	r := &rig{src: newFakeSource(150, 90), inj: &fakeInjector{}, recv: map[uint64]byte{}, served: make(chan error, 1)}
+	r := &rig{src: newFakeSource(150, 90), inj: &fakeInjector{}, recv: map[uint64]byte{}, served: make(chan error, 1), addr: ln.Addr().String()}
 	if opt.Check == nil {
 		opt.Check = func(f, _, _ string) (trust.Verdict, error) {
 			if trustViewer && f == fp(viewerID) {
@@ -136,22 +155,34 @@ func startWith(t *testing.T, opt Options, hostID, viewerID tls.Certificate, host
 		r.served <- Serve(ctx, conn, r.src, r.inj, dd, opt)
 	}()
 
-	r.client, err = Dial(ctx, ln.Addr().String(), viewerID, hosts, "pw")
+	r.client, err = Dial(ctx, r.addr, viewerID, hosts, "pw")
 	if err != nil {
 		r.dialErr = err
 		return r
 	}
 	t.Cleanup(r.client.Close)
-	go r.client.Run(ctx, func(f *tile.Frame, _ []tile.Rect) {
-		time.Sleep(onFrameDelay)
-		r.mu.Lock()
-		r.view = append(r.view[:0], f.Pix...)
-		r.mu.Unlock()
-	}, func(id uint64, st byte) {
-		r.mu.Lock()
-		r.recv[id] = st
-		r.mu.Unlock()
-	})
+	runDone := make(chan struct{})
+	go func() {
+		defer close(runDone)
+		r.client.Run(ctx, func(f *tile.Frame, _ []tile.Rect) {
+			time.Sleep(onFrameDelay)
+			r.mu.Lock()
+			r.view = append(r.view[:0], f.Pix...)
+			r.mu.Unlock()
+		}, func(id uint64, st byte) {
+			r.mu.Lock()
+			r.recv[id] = st
+			r.mu.Unlock()
+		})
+	}()
+	// A v1 host introduces itself before anything else, and a host that refuses the
+	// viewer closes the connection instead; either way the test can start.
+	select {
+	case <-r.client.welcome:
+	case <-runDone:
+	case <-time.After(5 * time.Second):
+		t.Error("the host neither introduced itself nor closed the connection")
+	}
 	return r
 }
 
@@ -259,8 +290,8 @@ func TestInputControllerReleasesOnTakeoverAndIgnoresStaleSession(t *testing.T) {
 	want := []proto.Input{
 		{Kind: proto.KindKeyDown, Arg: 0xA2},
 		{Kind: proto.KindMouseDown, Arg: 0, X: 12, Y: 34},
+		{Kind: proto.KindMouseUp, Arg: 0, X: proto.NoMove, Y: proto.NoMove}, // buttons first, where the pointer is
 		{Kind: proto.KindKeyUp, Arg: 0xA2},
-		{Kind: proto.KindMouseUp, Arg: 0, X: 12, Y: 34},
 		{Kind: proto.KindKeyDown, Arg: 0xA3},
 		{Kind: proto.KindKeyUp, Arg: 0xA3},
 	}
@@ -287,7 +318,6 @@ func TestServeReleasesHeldKeysOnDisconnect(t *testing.T) {
 	inj := &fakeInjector{}
 	controller := NewInputController(inj)
 	served := make(chan error, 1)
-	inputSeen := make(chan struct{}, 1)
 	go func() {
 		conn, err := ln.Accept(ctx)
 		if err != nil {
@@ -297,13 +327,7 @@ func TestServeReleasesHeldKeysOnDisconnect(t *testing.T) {
 		served <- Serve(ctx, conn, newFakeSource(64, 64), inj, proto.NewDedup(), Options{
 			FPS:             50,
 			InputController: controller,
-			OnInput: func() {
-				select {
-				case inputSeen <- struct{}{}:
-				default:
-				}
-			},
-			Check: func(_, _, _ string) (trust.Verdict, error) { return trust.Allowed, nil },
+			Check:           func(_, _, _ string) (trust.Verdict, error) { return trust.Allowed, nil },
 		})
 	}()
 
@@ -313,11 +337,6 @@ func TestServeReleasesHeldKeysOnDisconnect(t *testing.T) {
 	}
 	if err := cl.SendInput(proto.Input{Kind: proto.KindKeyDown, Arg: 0xA2}); err != nil { // VK_LCONTROL
 		t.Fatal(err)
-	}
-	select {
-	case <-inputSeen:
-	case <-time.After(3 * time.Second):
-		t.Fatal("OnInput was not called for viewer input")
 	}
 	waitForInputCount(t, inj, proto.KindKeyDown, 1)
 	cl.Close() // Simulate a dropped connection before Ctrl key-up reaches the host.
@@ -344,7 +363,7 @@ func waitForInputCount(t *testing.T, inj *fakeInjector, kind byte, want int) {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatalf("input kind %d count never reached %d", kind, want)
+	t.Fatalf("input kind %d count reached %d, never %d", kind, inj.count(kind), want)
 }
 
 func TestUntrustedViewerRejected(t *testing.T) {
@@ -374,14 +393,29 @@ func TestHostPinnedAfterFirstConnection(t *testing.T) {
 		t.Fatal(r.dialErr)
 	}
 	r.waitView(t, nil)
-	if got, _ := hosts.Get("127.0.0.1"); got != fp(hostA) {
+	if got, _ := PinnedFingerprint(hosts, r.addr); got != fp(hostA) {
 		t.Fatalf("pinned %q, want host A's fingerprint", got)
 	}
-	// A different machine answering at the same address must be refused.
-	r2 := startWith(t, Options{}, hostB, viewerID, hosts, true, 0)
-	if r2.dialErr == nil || !strings.Contains(r2.dialErr.Error(), ErrHostChanged.Error()) {
-		t.Fatalf("dial to changed host = %v, want %q", r2.dialErr, ErrHostChanged)
+	// A different machine answering at an address where host A was met must be refused.
+	addr, _ := pinHost(t, hostB, viewerID)
+	if err := PinHost(hosts, addr, fp(hostA)); err != nil {
+		t.Fatal(err)
 	}
+	if err := dialOnce(t, addr, viewerID, hosts); err == nil || !strings.Contains(err.Error(), ErrHostChanged.Error()) {
+		t.Fatalf("dial to changed host = %v, want %q", err, ErrHostChanged)
+	}
+}
+
+// dialOnce connects to addr, checking the host against hosts, and hangs up.
+func dialOnce(t *testing.T, addr string, viewerID tls.Certificate, hosts *trust.Store) error {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	c, err := Dial(ctx, addr, viewerID, hosts, "")
+	if err == nil {
+		c.Close()
+	}
+	return err
 }
 
 func TestWrongPasswordReportedToViewer(t *testing.T) {
@@ -462,46 +496,170 @@ func TestLargeFirstFrameIsNotCancelledForever(t *testing.T) {
 	}
 }
 
-func TestDialPinnedRejectsChangedHost(t *testing.T) {
-	viewerID, hostID, otherID := identity(t), identity(t), identity(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	ln, err := Listen("127.0.0.1:0", hostID)
-	if err != nil {
+// After the user decides to trust a host's new identity, ForgetHost lets the
+// next connection pin it; nothing else changes the pin.
+func TestForgetHostLetsAChangedHostBePinnedAgain(t *testing.T) {
+	viewerID, hostA, hostB := identity(t), identity(t), identity(t)
+	hosts := hostsStore(t)
+	addr, _ := pinHost(t, hostB, viewerID)
+	if err := PinHost(hosts, addr, fp(hostA)); err != nil { // host A was met at this address before
 		t.Fatal(err)
 	}
-	defer ln.Close()
-	go func() {
-		conn, err := ln.Accept(ctx)
-		if err == nil {
-			_ = Serve(ctx, conn, newFakeSource(64, 64), &fakeInjector{}, proto.NewDedup(), Options{
-				Check: func(_, _, _ string) (trust.Verdict, error) { return trust.Allowed, nil },
-			})
-		}
-	}()
-
-	client, err := DialPinned(ctx, ln.Addr().String(), viewerID, fp(hostID), "")
-	if err != nil {
-		t.Fatalf("DialPinned with correct fingerprint: %v", err)
+	if err := dialOnce(t, addr, viewerID, hosts); err == nil {
+		t.Fatal("changed host was accepted before ForgetHost")
 	}
-	client.Close()
-
-	ln2, err := Listen("127.0.0.1:0", otherID)
-	if err != nil {
+	if err := ForgetHost(hosts, addr); err != nil {
 		t.Fatal(err)
 	}
-	defer ln2.Close()
-	go func() {
-		_, _ = ln2.Accept(ctx)
-	}()
-	_, err = DialPinned(ctx, ln2.Addr().String(), viewerID, fp(hostID), "123456")
-	if err == nil || !errors.Is(err, ErrHostChanged) {
-		t.Fatalf("DialPinned changed host = %v, want ErrHostChanged", err)
+	if _, ok := PinnedFingerprint(hosts, addr); ok {
+		t.Fatal("pin still present after ForgetHost")
+	}
+	if err := dialOnce(t, addr, viewerID, hosts); err != nil {
+		t.Fatalf("dial after ForgetHost: %v", err)
+	}
+	if got, _ := PinnedFingerprint(hosts, addr); got != fp(hostB) {
+		t.Fatalf("pinned %q, want host B's fingerprint", got)
 	}
 }
 
-func TestDialPinnedRejectsMalformedFingerprint(t *testing.T) {
-	if _, err := DialPinned(context.Background(), "127.0.0.1:1", identity(t), "not-a-fingerprint", ""); err == nil {
-		t.Fatal("malformed fingerprint accepted")
+// One PC can run two hosts on two ports (go-nx, and an nx-host started by another
+// program), each with its own identity: both are remembered, neither looks like the other
+// having changed. On the default port the pin stays under the IP alone, as it always was.
+func TestHostsOnTwoPortsOfOnePCKeepTheirOwnPins(t *testing.T) {
+	viewerID, hostA, hostB := identity(t), identity(t), identity(t)
+	hosts := hostsStore(t)
+	a := startWith(t, Options{}, hostA, viewerID, hosts, true, 0)
+	b := startWith(t, Options{}, hostB, viewerID, hosts, true, 0)
+	if a.dialErr != nil || b.dialErr != nil {
+		t.Fatalf("dial A: %v, dial B: %v", a.dialErr, b.dialErr)
+	}
+	if got, _ := PinnedFingerprint(hosts, a.addr); got != fp(hostA) {
+		t.Errorf("pin for %s is %q, want host A's", a.addr, got)
+	}
+	if got, _ := PinnedFingerprint(hosts, b.addr); got != fp(hostB) {
+		t.Errorf("pin for %s is %q, want host B's", b.addr, got)
+	}
+	for addr, want := range map[string]string{
+		"100.109.77.29:7000": "100.109.77.29", "100.109.77.29:7001": "100.109.77.29:7001",
+		"[fd7a::1]:7000": "fd7a::1", "[fd7a::1]:7001": "[fd7a::1]:7001", "100.109.77.29": "100.109.77.29",
+	} {
+		if got := pinKey(addr); got != want {
+			t.Errorf("pinKey(%q) = %q, want %q", addr, got, want)
+		}
+	}
+}
+
+// The whole pairing story over real connections: a stranger is turned away, the
+// right code pairs it once, and from then on it connects with no password.
+func TestPairingCodeEndToEnd(t *testing.T) {
+	store, err := trust.OpenStore(filepath.Join(t.TempDir(), "trusted.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	policy := trust.NewPolicy(store)
+	policy.SetRequireAuth(true)
+	policy.OpenPairing("123456", time.Minute)
+	opt := Options{Check: policy.Check}
+
+	viewerID, hostID := identity(t), identity(t)
+	hosts := hostsStore(t)
+
+	dial := func(password string) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		ln, err := Listen("127.0.0.1:0", hostID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer ln.Close()
+		served := make(chan error, 1)
+		go func() {
+			conn, err := ln.Accept(ctx)
+			if err != nil {
+				served <- err
+				return
+			}
+			served <- Serve(ctx, conn, newFakeSource(64, 64), &fakeInjector{}, proto.NewDedup(), opt)
+		}()
+		c, err := Dial(ctx, ln.Addr().String(), viewerID, hosts, password)
+		if err != nil {
+			return err
+		}
+		defer c.Close()
+		select {
+		case err := <-served:
+			if errors.Is(err, ErrDenied) {
+				return err
+			}
+		case <-time.After(300 * time.Millisecond): // still serving: the host let it in
+		}
+		return nil
+	}
+
+	if err := dial(""); !errors.Is(err, ErrDenied) {
+		t.Fatalf("no code: %v, want the host to refuse", err)
+	}
+	if err := dial("000000"); !errors.Is(err, ErrDenied) {
+		t.Fatalf("wrong code: %v, want the host to refuse", err)
+	}
+	if store.Len() != 0 {
+		t.Fatal("a device was paired without the code")
+	}
+	if err := dial("123456"); err != nil {
+		t.Fatalf("right code: %v", err)
+	}
+	if store.Len() != 1 {
+		t.Fatalf("paired devices = %d, want 1", store.Len())
+	}
+	if err := dial(""); err != nil {
+		t.Fatalf("paired device with no password: %v", err)
+	}
+}
+
+// A viewer asks for a virtual display of its size; the host hears the size and answers with
+// what it did, which the viewer can read and is told of. A host that cannot is never asked.
+func TestViewSizeReachesTheHostAndItsAnswerComesBack(t *testing.T) {
+	asked := make(chan [2]int, 2)
+	r := start(t, Options{OnViewSize: func(w, h int, report func(proto.DisplayState)) {
+		asked <- [2]int{w, h}
+		go report(proto.DisplayState{Virtual: w > 0, W: uint16(w), H: uint16(h)})
+	}}, true, 0)
+	if r.dialErr != nil {
+		t.Fatal(r.dialErr)
+	}
+	told := make(chan struct{}, 2)
+	r.client.OnDisplayState(func() { told <- struct{}{} })
+	if !r.client.Supports(proto.CapVirtualDisplay) {
+		t.Fatal("a host with OnViewSize does not advertise CapVirtualDisplay")
+	}
+	if err := r.client.SendViewSize(1920, 1080); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-asked:
+		if got != [2]int{1920, 1080} {
+			t.Fatalf("the host was asked for %v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the host never heard the size")
+	}
+	select {
+	case <-told:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the viewer was not told of the host's answer")
+	}
+	if st, ok := r.client.DisplayState(); !ok || !st.Virtual || st.W != 1920 || st.H != 1080 {
+		t.Errorf("display state = %+v, %v", st, ok)
+	}
+
+	plain := start(t, Options{}, true, 0)
+	if plain.dialErr != nil {
+		t.Fatal(plain.dialErr)
+	}
+	if plain.client.Supports(proto.CapVirtualDisplay) {
+		t.Error("a host without OnViewSize advertises CapVirtualDisplay")
+	}
+	if err := plain.client.SendViewSize(800, 600); !errors.Is(err, ErrUnsupported) {
+		t.Errorf("asking a host that cannot: %v, want ErrUnsupported", err)
 	}
 }

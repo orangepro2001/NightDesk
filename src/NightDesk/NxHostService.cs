@@ -157,7 +157,8 @@ public sealed class NxHostService : IDisposable
                 ready = value;
                 break;
             case "status":
-                if (value.Trusted is not null) trusted = NxTrustedDevice.From(value.Trusted);
+                if (value.Trusted is not null || value.TrustedDetails is not null)
+                    trusted = NxTrustedDevice.FromEvent(value.Trusted, value.TrustedDetails);
                 connectedAddress = value.Addr;
                 pairingCode = null;
                 pairingExpiresAt = default;

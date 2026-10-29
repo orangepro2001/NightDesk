@@ -2,23 +2,24 @@ package cursor
 
 import "testing"
 
-func TestDrawPositionUsesMonitorOriginAndCursorHotspot(t *testing.T) {
-	for _, tc := range []struct {
-		name               string
-		monitorX, monitorY int32
-		cursorX, cursorY   int32
-		hotspotX, hotspotY uint32
-		wantX, wantY       int32
+func TestDrawPosition(t *testing.T) {
+	for _, c := range []struct {
+		name           string
+		mx, my, cx, cy int32
+		hx, hy         uint32
+		wantX, wantY   int32
 	}{
-		{name: "primary", cursorX: 120, cursorY: 90, hotspotX: 4, hotspotY: 6, wantX: 116, wantY: 84},
-		{name: "secondary", monitorX: 1920, cursorX: 2000, cursorY: 40, hotspotX: 8, hotspotY: 3, wantX: 72, wantY: 37},
-		{name: "negative origin", monitorX: -1280, monitorY: -200, cursorX: -1200, cursorY: -100, hotspotX: 5, hotspotY: 9, wantX: 75, wantY: 91},
+		{"primary at origin, arrow with a 0,0 hotspot", 0, 0, 500, 400, 0, 0, 500, 400},
+		{"hotspot moves the image up and left", 0, 0, 500, 400, 3, 5, 497, 395},
+		{"monitor to the right of the primary", 1920, 0, 2000, 300, 0, 0, 80, 300},
+		{"monitor to the left of the primary has a negative origin", -1920, 0, -1000, 300, 3, 5, 917, 295},
+		{"monitor above the primary", 0, -1080, 100, -1000, 0, 0, 100, 80},
+		{"pointer on another monitor lands off this one", 0, 0, 2500, 100, 0, 0, 2500, 100},
+		{"hotspot near the top-left edge draws partly off the monitor", 0, 0, 2, 1, 10, 10, -8, -9},
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			x, y := DrawPosition(tc.monitorX, tc.monitorY, tc.cursorX, tc.cursorY, tc.hotspotX, tc.hotspotY)
-			if x != tc.wantX || y != tc.wantY {
-				t.Fatalf("DrawPosition() = (%d, %d), want (%d, %d)", x, y, tc.wantX, tc.wantY)
-			}
-		})
+		x, y := DrawPosition(c.mx, c.my, c.cx, c.cy, c.hx, c.hy)
+		if x != c.wantX || y != c.wantY {
+			t.Errorf("%s: DrawPosition = %d,%d, want %d,%d", c.name, x, y, c.wantX, c.wantY)
+		}
 	}
 }

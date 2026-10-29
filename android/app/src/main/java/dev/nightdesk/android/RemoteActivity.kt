@@ -188,13 +188,18 @@ class RemoteActivity : ComponentActivity() {
         io.execute {
             try {
                 val identityDir = File(filesDir, "nx-identity").apply { mkdirs() }
-                val opened = mobile.Mobile.newSession(
+                val opened = mobile.Mobile.newSessionWithOptions(
                     identityDir.absolutePath,
                     host.addr,
                     host.fingerprint,
                     pairingCode,
+                    true,
                     Callback(request)
                 )
+                // The NightDesk QR identifies hosts whose v0 implementation
+                // supports these two historical extensions without capability
+                // negotiation. Do not make that assumption for unrelated peers.
+                if (opened.protocolVersion() == 0L) opened.assumeLegacyExtensions()
                 var keep = false
                 synchronized(this) {
                     if (!destroyed && request == generation) {

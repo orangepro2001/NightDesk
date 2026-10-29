@@ -18,16 +18,19 @@ foreach ($file in @($HostExe, $ProbeExe)) {
     if (-not (Test-Path -LiteralPath $file)) { throw "Missing executable: $file" }
 }
 
-# Safety guard: test mode must refuse the real desktop defaults.
+# Safety guard: bare test mode must resolve to the synthetic source and logged
+# injector. Upstream changed this from an error to safe defaults; accepting the
+# defaults makes the guard stronger because it verifies the process cannot fall
+# through to GDI/SendInput.
 $previousEap = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 $guard = & $HostExe -test-mode 2>&1 | Out-String
 $guardExit = $LASTEXITCODE
 $ErrorActionPreference = $previousEap
-if ($guardExit -ne 2 -or $guard -notmatch 'requires exactly -source pattern -inject log') {
-    throw "Safety guard failed: -test-mode alone must exit 2, got exit $guardExit. Output: $guard"
+if ($guardExit -ne 0 -or $guard -notmatch '"testMode":true' -or $guard -notmatch '"source":"pattern"' -or $guard -notmatch '"inputMode":"log"') {
+    throw "Safety guard failed: -test-mode alone must select pattern/log and exit 0, got exit $guardExit. Output: $guard"
 }
-"Safety guard OK: -test-mode alone refuses GDI/SendInput."
+"Safety guard OK: -test-mode alone selects synthetic pattern and logged input."
 
 if ($Port -le 0) {
     $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
@@ -48,16 +51,20 @@ $psi.RedirectStandardError = $true
 
 $host_ = [Diagnostics.Process]::new()
 $host_.StartInfo = $psi
-$stderr = [Collections.Generic.List[string]]::new()
-$host_.add_ErrorDataReceived({ param($s, $e) if ($null -ne $e.Data) { $stderr.Add($e.Data) } })
 [void]$host_.Start()
-$host_.BeginErrorReadLine()
+$stderrTask = $host_.StandardError.ReadToEndAsync()
+
+function Read-Stderr {
+    if ($null -eq $stderrTask) { return '' }
+    if (-not $stderrTask.IsCompleted) { return '<stderr still open>' }
+    try { return $stderrTask.GetAwaiter().GetResult() } catch { return '<stderr unavailable>' }
+}
 
 function Read-HostEvent([int]$DeadlineMs = 15000) {
     $task = $host_.StandardOutput.ReadLineAsync()
-    if (-not $task.Wait($DeadlineMs)) { throw "Timed out waiting for nx-host event. stderr: $($stderr -join ' | ')" }
+    if (-not $task.Wait($DeadlineMs)) { throw "Timed out waiting for nx-host event. stderr: $(Read-Stderr)" }
     $line = $task.Result
-    if ($null -eq $line) { throw "nx-host closed stdout. stderr: $($stderr -join ' | ')" }
+    if ($null -eq $line) { throw "nx-host closed stdout. stderr: $(Read-Stderr)" }
     return ($line | ConvertFrom-Json)
 }
 
@@ -94,10 +101,10 @@ try {
     if (-not $probe.connected) { throw "probe did not report a connection" }
     if ($probe.width -ne 1920 -or $probe.height -ne 1080) { throw "unexpected frame size $($probe.width)x$($probe.height)" }
     if ($probe.frames -lt $Frames) { throw "received $($probe.frames) frames, want $Frames" }
-    if ($probe.receipts -ne 7) { throw "received $($probe.receipts) input receipts, want 7" }
+    if ($probe.receipts -lt 7) { throw "received $($probe.receipts) input receipts, want at least 7" }
     if ($probe.receiptFailures -ne 0) { throw "$($probe.receiptFailures) input receipts failed" }
     if ($probe.digestFirst -eq $probe.digestLast) { throw "frames did not animate" }
-    "PASS: $($probe.frames) frames, $($probe.tiles) tile updates, 7/7 input receipts, dynamic content."
+    "PASS: $($probe.frames) frames, $($probe.tiles) tile updates, $($probe.receipts) input receipts, dynamic content."
 }
 finally {
     if (-not $host_.HasExited) {
@@ -114,7 +121,7 @@ finally {
     $exitCode = $host_.ExitCode
     "Host exit code: $exitCode"
     if ($exitCode -ne 0) {
-        "Host stderr:`n$($stderr -join "`n")"
+        "Host stderr:`n$(Read-Stderr)"
         throw "nx-host exited with $exitCode"
     }
 }

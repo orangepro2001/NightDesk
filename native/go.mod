@@ -1,6 +1,6 @@
 module github.com/orangepro2001/nightdesk/native
 
-go 1.26.0
+go 1.27.3
 
 require github.com/quic-go/quic-go v0.64.1
 

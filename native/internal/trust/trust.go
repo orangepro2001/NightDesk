@@ -13,33 +13,22 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"io"
+	"maps"
 	"math/big"
 	"os"
 	"path/filepath"
-	"strings"
+	"slices"
 	"sync"
 	"time"
+
+	"github.com/orangepro2001/nightdesk/native/internal/fsutil"
 )
 
 // Fingerprint is the hex SHA-256 of a DER certificate.
 func Fingerprint(der []byte) string {
 	sum := sha256.Sum256(der)
 	return hex.EncodeToString(sum[:])
-}
-
-// NormalizeFingerprint accepts a SHA-256 certificate fingerprint entered by a
-// human (upper or lower case, with optional colon or ASCII-space separators)
-// and returns the canonical lower-case 64-character hex form.
-func NormalizeFingerprint(text string) (string, error) {
-	text = strings.ToLower(strings.TrimSpace(text))
-	text = strings.NewReplacer(":", "", " ", "").Replace(text)
-	if len(text) != sha256.Size*2 {
-		return "", errors.New("fingerprint must be 64 hexadecimal characters")
-	}
-	if _, err := hex.DecodeString(text); err != nil {
-		return "", errors.New("fingerprint must be 64 hexadecimal characters")
-	}
-	return text, nil
 }
 
 // Identity loads the self-signed certificate stored in dir/identity.pem,
@@ -59,7 +48,7 @@ func Identity(dir string) (tls.Certificate, error) {
 	name, _ := os.Hostname()
 	tmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(time.Now().UnixNano()),
-		Subject:      pkix.Name{CommonName: "NightDesk " + name},
+		Subject:      pkix.Name{CommonName: "go-nx " + name},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().AddDate(30, 0, 0),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
@@ -76,10 +65,7 @@ func Identity(dir string) (tls.Certificate, error) {
 	pemData := append(
 		pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}),
 		pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})...)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return tls.Certificate{}, err
-	}
-	if err := os.WriteFile(path, pemData, 0o600); err != nil {
+	if err := fsutil.WriteFileAtomic(path, pemData, 0o600); err != nil {
 		return tls.Certificate{}, err
 	}
 	return tls.X509KeyPair(pemData, pemData)
@@ -108,11 +94,43 @@ func OpenStore(path string) (*Store, error) {
 	return s, nil
 }
 
+// OpenStoreRecovering is OpenStore for start-up: a file that exists but cannot
+// be parsed is moved aside (its new name is returned as backup) and the store
+// starts empty, so one damaged file cannot keep the program from starting. The
+// caller should tell the user, because whatever was in the file is gone from the
+// program's point of view (a trusted store loses its pairings).
+func OpenStoreRecovering(path string) (s *Store, backup string, err error) {
+	s, err = OpenStore(path)
+	if err == nil {
+		return s, "", nil
+	}
+	var syn *json.SyntaxError
+	var typ *json.UnmarshalTypeError
+	if !errors.As(err, &syn) && !errors.As(err, &typ) && !errors.Is(err, io.ErrUnexpectedEOF) {
+		return nil, "", err // unreadable (permissions, I/O): not ours to paper over
+	}
+	if backup, err = fsutil.Quarantine(path); err != nil {
+		return nil, "", err
+	}
+	return &Store{path: path, m: map[string]string{}}, backup, nil
+}
+
 func (s *Store) Get(key string) (string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	v, ok := s.m[key]
 	return v, ok
+}
+
+// Bool reads a flag stored as "1" or "0". A key that was never set gives def,
+// so a new default reaches installs that never touched the setting while an
+// explicit choice is kept; any other stored value counts as false.
+func (s *Store) Bool(key string, def bool) bool {
+	v, ok := s.Get(key)
+	if !ok {
+		return def
+	}
+	return v == "1"
 }
 
 func (s *Store) Len() int {
@@ -121,18 +139,15 @@ func (s *Store) Len() int {
 	return len(s.m)
 }
 
-// List returns a copy of all entries, for display in the host UI.
-func (s *Store) List() map[string]string {
+// Set stores key=val and writes the file.
+func (s *Store) Set(key, val string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	out := make(map[string]string, len(s.m))
-	for k, v := range s.m {
-		out[k] = v
-	}
-	return out
+	s.m[key] = val
+	return s.saveLocked()
 }
 
-// Delete removes key and writes the file.
+// Delete removes key and writes the file. A key that is not there is not an error.
 func (s *Store) Delete(key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -140,27 +155,32 @@ func (s *Store) Delete(key string) error {
 		return nil
 	}
 	delete(s.m, key)
-	b, err := json.MarshalIndent(s.m, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
-		return err
-	}
-	return os.WriteFile(s.path, b, 0o600)
+	return s.saveLocked()
 }
 
-// Set stores key=val and writes the file.
-func (s *Store) Set(key, val string) error {
+// Clear removes every entry, writes the file, and returns how many there were.
+func (s *Store) Clear() (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.m[key] = val
+	n := len(s.m)
+	if n == 0 {
+		return 0, nil
+	}
+	clear(s.m)
+	return n, s.saveLocked()
+}
+
+// Keys returns the stored keys in sorted order.
+func (s *Store) Keys() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Sorted(maps.Keys(s.m))
+}
+
+func (s *Store) saveLocked() error {
 	b, err := json.MarshalIndent(s.m, "", "  ")
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
-		return err
-	}
-	return os.WriteFile(s.path, b, 0o600)
+	return fsutil.WriteFileAtomic(s.path, b, 0o600)
 }

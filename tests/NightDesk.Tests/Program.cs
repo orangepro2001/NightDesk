@@ -344,6 +344,13 @@ Check(trustedV6.Endpoint == "[::1]:5555", "parse trusted ipv6 entry");
 var trustedRaw = NxTrustedDevice.Create("fingerprint", "not-a-timestamp");
 Check(trustedRaw.Endpoint == "not-a-timestamp" && trustedRaw.PairedAt == "", "keep unparseable trust value visible");
 Check(NxTrustedDevice.From(null).Count == 0, "empty trust list has no devices");
+var legacyTrust = NxHostEvent.Parse("""{"event":"status","trusted":{"fingerprint":"192.168.1.5:5555 2026-10-27 01:20"}}""");
+Check(NxTrustedDevice.FromEvent(legacyTrust.Trusted, legacyTrust.TrustedDetails).Single().Endpoint == "192.168.1.5:5555", "parse legacy trusted map event");
+var upstreamTrust = NxHostEvent.Parse("""{"event":"status","trusted":["fingerprint"],"trustedDetails":{"fingerprint":"[::1]:5555 2026-10-27 01:20"}}""");
+var upstreamDevice = NxTrustedDevice.FromEvent(upstreamTrust.Trusted, upstreamTrust.TrustedDetails).Single();
+Check(upstreamDevice.Endpoint == "[::1]:5555" && upstreamDevice.PairedAt == "2026-10-27 01:20", "parse upstream trusted array and NightDesk details");
+var upstreamBare = NxHostEvent.Parse("""{"event":"status","trusted":["fingerprint"]}""");
+Check(NxTrustedDevice.FromEvent(upstreamBare.Trusted, upstreamBare.TrustedDetails).Single().Fingerprint == "fingerprint", "parse upstream trusted array without optional details");
 
 var nxFingerprint = new string('A', 64);
 var nxPayload = new NxPairingPayload("100.100.1.2:7000", nxFingerprint, "123456", DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeSeconds(), "PC-TEST", 1920, 1080);
@@ -602,7 +609,8 @@ try
         trustedService.RefreshStatusAsync().GetAwaiter().GetResult();
         bool sawStatus = statusSeen.Task.Wait(TimeSpan.FromSeconds(5));
         Check(sawStatus, "service receives status event");
-        Check(statusSeen.Task.Result.Trusted?.Count == 1, "status event carries seeded trust entry");
+        Check(statusSeen.Task.Result.Trusted is { ValueKind: JsonValueKind.Object } trustObject && trustObject.EnumerateObject().Count() == 1,
+            "legacy status event carries seeded trust entry");
         Check(WaitUntil(() => trustedService.Trusted.Count == 1, TimeSpan.FromSeconds(5)), "service refreshes seeded trust list");
         Check(trustedService.Trusted[0].Endpoint == "100.100.1.2:5555", "trusted endpoint survives status parsing");
         trustedService.UntrustAsync(trustFingerprint).GetAwaiter().GetResult();

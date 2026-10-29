@@ -40,7 +40,8 @@ public sealed class NxHostEvent
     public string? Addr { get; init; }
     public string? Reason { get; init; }
     public string? Message { get; init; }
-    public Dictionary<string, string>? Trusted { get; init; }
+    public JsonElement? Trusted { get; init; }
+    public Dictionary<string, string>? TrustedDetails { get; init; }
     public int? Fps { get; init; }
     public bool? RequireAuth { get; init; }
 
@@ -106,6 +107,32 @@ public sealed record NxTrustedDevice(string Fingerprint, string Endpoint, string
                 return new NxTrustedDevice(fingerprint, raw[..^16].Trim(), tail);
         }
         return new NxTrustedDevice(fingerprint, raw, "");
+    }
+
+    /// <summary>Accepts the legacy fingerprint-to-detail object and upstream's fingerprint array.</summary>
+    public static IReadOnlyList<NxTrustedDevice> FromEvent(JsonElement? trusted, Dictionary<string, string>? details)
+    {
+        var entries = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (trusted is { ValueKind: JsonValueKind.Object } legacy)
+        {
+            foreach (var item in legacy.EnumerateObject())
+                entries[item.Name] = item.Value.ValueKind == JsonValueKind.String ? item.Value.GetString() ?? "" : item.Value.ToString();
+        }
+        else if (trusted is { ValueKind: JsonValueKind.Array } current)
+        {
+            foreach (var item in current.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.String) continue;
+                string fingerprint = item.GetString() ?? "";
+                entries[fingerprint] = details?.GetValueOrDefault(fingerprint) ?? "";
+            }
+        }
+        else if (trusted is null && details is not null)
+        {
+            foreach (var item in details) entries[item.Key] = item.Value;
+        }
+
+        return From(entries);
     }
 }
 

@@ -1,26 +1,24 @@
 //go:build windows
 
-// Package capture grabs one monitor of the Windows desktop with GDI BitBlt.
-//
-// Those are the same GDI semantics go-nx used for the primary screen: no
-// Desktop Duplication, no HDR tone mapping and no protected-content path. What
-// is new here is monitor selection and the fact that the caller receives the
-// monitor's virtual-desktop origin, which the injector needs to put the cursor
-// on the right screen.
 package capture
 
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 
 	"github.com/orangepro2001/nightdesk/native/internal/cursor"
 	"github.com/orangepro2001/nightdesk/native/internal/tile"
 )
+
+// Capture is GDI BitBlt from the screen device context: no Desktop Duplication,
+// no HDR tone mapping and no protected-content path. A monitor is addressed by its
+// rectangle in virtual-desktop coordinates, which is negative for a monitor left
+// of or above the primary one.
 
 var (
 	user32    = syscall.NewLazyDLL("user32.dll")
@@ -42,15 +40,16 @@ var (
 	getIcon   = user32.NewProc("GetIconInfo")
 	getDPI    = shcore.NewProc("GetDpiForMonitor")
 	setCtx    = user32.NewProc("SetProcessDpiAwarenessContext")
+	setAware  = user32.NewProc("SetProcessDPIAware")
 
 	dpiAwareOnce sync.Once
 )
 
 const (
-	smXScreen               = 76
-	smYScreen               = 77
-	smCXScreen              = 78
-	smCYScreen              = 79
+	smXVirtual              = 76
+	smYVirtual              = 77
+	smCXVirtual             = 78
+	smCYVirtual             = 79
 	monitorDefaultToPrimary = 0x00000001
 	srccopy                 = 0x00CC0020
 	captureBlt              = 0x40000000  // include layered windows
@@ -59,24 +58,11 @@ const (
 	diNormal                = 0x00000003
 )
 
-// Display describes one monitor in virtual-desktop coordinates.
-type Display struct {
-	Index   int
-	Device  string // "\\.\DISPLAY1"
-	X, Y    int32  // top-left in virtual-desktop pixels
-	W, H    int32
-	Primary bool
-	DPI     int // effective DPI, 96 when unknown
-}
-
-// String is for logs and the status line.
-func (d Display) String() string {
-	return fmt.Sprintf("%s %dx%d at %d,%d dpi=%d", d.Device, d.W, d.H, d.X, d.Y, d.DPI)
-}
-
-// EnableDPIAwareness makes the process per-monitor DPI aware so captured pixel
-// sizes and SendInput coordinates agree with the physical desktop. It is safe to
-// call more than once.
+// EnableDPIAwareness makes the process per-monitor DPI aware, so the pixel sizes
+// the capture reports, and the coordinates the injector is given, are the
+// physical ones. Call it before any window is created: the first call that works
+// decides, and later ones are ignored by Windows. It is safe to call more than
+// once.
 func EnableDPIAwareness() {
 	dpiAwareOnce.Do(func() {
 		if setCtx.Find() == nil {
@@ -84,10 +70,9 @@ func EnableDPIAwareness() {
 				return
 			}
 		}
-		// Fallback for Windows versions before the per-monitor context API.
-		if p := user32.NewProc("SetProcessDPIAware"); p.Find() == nil {
-			p.Call()
-		}
+		// Windows before the per-monitor context API (or an awareness that was
+		// already set, which this then fails to change and leaves alone).
+		setAware.Call()
 	})
 }
 
@@ -115,18 +100,21 @@ type monitorInfoEx struct {
 	Device  [32]uint16
 }
 
-// Displays lists the active monitors in the order EnumDisplayMonitors reports.
-func Displays() ([]Display, error) {
-	EnableDPIAwareness()
-	var out []Display
-	cb := syscall.NewCallback(func(hmon uintptr, _ uintptr, _ uintptr, _ uintptr) uintptr {
+// enumeration state. syscall.NewCallback may be called only a limited number of
+// times in a process (about 2000) and never frees what it makes, and Displays runs
+// every second while a viewer is connected, so there is exactly one callback and
+// the results go through these package variables.
+var (
+	enumMu  sync.Mutex
+	enumOut []Display
+	enumCB  = syscall.NewCallback(func(hmon, _, _, _ uintptr) uintptr {
 		var mi monitorInfoEx
 		mi.Size = uint32(unsafe.Sizeof(mi))
 		if r, _, _ := getMonInf.Call(hmon, uintptr(unsafe.Pointer(&mi))); r == 0 {
 			return 1
 		}
 		d := Display{
-			Index:   len(out),
+			Index:   len(enumOut),
 			Device:  syscall.UTF16ToString(mi.Device[:]),
 			X:       mi.Monitor.Left,
 			Y:       mi.Monitor.Top,
@@ -137,93 +125,29 @@ func Displays() ([]Display, error) {
 		}
 		var dx, dy uint32
 		if getDPI.Find() == nil {
-			// MDT_EFFECTIVE_DPI = 0
-			if r, _, _ := getDPI.Call(hmon, 0, uintptr(unsafe.Pointer(&dx)), uintptr(unsafe.Pointer(&dy))); r == 0 && dx > 0 {
+			const mdtEffectiveDPI = 0
+			if r, _, _ := getDPI.Call(hmon, mdtEffectiveDPI, uintptr(unsafe.Pointer(&dx)), uintptr(unsafe.Pointer(&dy))); r == 0 && dx > 0 {
 				d.DPI = int(dx)
 			}
 		}
-		out = append(out, d)
+		enumOut = append(enumOut, d)
 		return 1
 	})
-	if r, _, err := enumDisp.Call(0, 0, cb, 0); r == 0 {
+)
+
+// Displays lists the active monitors in the order EnumDisplayMonitors reports.
+func Displays() ([]Display, error) {
+	EnableDPIAwareness()
+	enumMu.Lock()
+	defer enumMu.Unlock()
+	enumOut = nil
+	if r, _, err := enumDisp.Call(0, 0, enumCB, 0); r == 0 {
 		return nil, fmt.Errorf("capture: EnumDisplayMonitors failed: %v", err)
 	}
-	if len(out) == 0 {
+	if len(enumOut) == 0 {
 		return nil, errors.New("capture: no monitors reported")
 	}
-	return out, nil
-}
-
-// Open selects a monitor and prepares a reusable capture buffer.
-//
-// selector may be "", "primary", a zero-based index as reported by Displays, or
-// a device name such as "\\\\.\\DISPLAY6" (the form NightDesk stores). The
-// device name is the stable choice across reboots.
-func Open(selector string) (*Screen, error) {
-	all, err := Displays()
-	if err != nil {
-		return nil, err
-	}
-	d, err := selectDisplay(all, selector)
-	if err != nil {
-		return nil, err
-	}
-	s := &Screen{display: d, w: int(d.W), h: int(d.H)}
-	s.screen, _, _ = getDC.Call(0)
-	if s.screen == 0 {
-		return nil, errors.New("capture: GetDC failed")
-	}
-	s.memDC, _, _ = createDC.Call(s.screen)
-	if s.memDC == 0 {
-		s.Close()
-		return nil, errors.New("capture: CreateCompatibleDC failed")
-	}
-	bi := bitmapInfoHeader{
-		Size: uint32(unsafe.Sizeof(bitmapInfoHeader{})), Width: int32(s.w),
-		Height: -int32(s.h), Planes: 1, Bits: 32, // negative height = top-down
-	}
-	s.bmp, _, _ = createDIB.Call(s.memDC, uintptr(unsafe.Pointer(&bi)), 0,
-		uintptr(unsafe.Pointer(&s.pixels)), 0, 0)
-	if s.bmp == 0 || s.pixels == nil {
-		s.Close()
-		return nil, errors.New("capture: CreateDIBSection failed")
-	}
-	s.old, _, _ = selectObj.Call(s.memDC, s.bmp)
-	return s, nil
-}
-
-func selectDisplay(all []Display, selector string) (Display, error) {
-	sel := strings.TrimSpace(selector)
-	switch strings.ToLower(sel) {
-	case "", "primary":
-		for _, d := range all {
-			if d.Primary {
-				return d, nil
-			}
-		}
-		return all[0], nil
-	}
-	if i, err := strconv.Atoi(sel); err == nil {
-		if i < 0 || i >= len(all) {
-			return Display{}, fmt.Errorf("capture: display index %d out of range (found %d)", i, len(all))
-		}
-		return all[i], nil
-	}
-	want := sel
-	upper := strings.ToUpper(want)
-	if !strings.HasPrefix(upper, "\\\\.") && !strings.HasPrefix(upper, "DISPLAY") {
-		want = "\\\\.\\" + want
-	}
-	for _, d := range all {
-		if strings.EqualFold(d.Device, want) {
-			return d, nil
-		}
-	}
-	var names []string
-	for _, d := range all {
-		names = append(names, d.Device)
-	}
-	return Display{}, fmt.Errorf("capture: display %q not found (have %s)", selector, strings.Join(names, ", "))
+	return append([]Display(nil), enumOut...), nil
 }
 
 type bitmapInfoHeader struct {
@@ -239,7 +163,7 @@ type bitmapInfoHeader struct {
 
 // Screen captures one monitor into a reusable BGRA buffer.
 type Screen struct {
-	mu      sync.Mutex // serializes Grab and Close
+	mu      sync.Mutex // serializes Grab, Refresh, Size and Close
 	display Display
 	w, h    int
 	screen  uintptr
@@ -247,73 +171,71 @@ type Screen struct {
 	bmp     uintptr
 	old     uintptr
 	pixels  unsafe.Pointer
+
+	pointer atomic.Bool // draw the system pointer into each grab
+
+	// pointerSource says which pointer to draw and where. It is the system's
+	// (systemPointer) except in tests, which supply a fixed one because a desktop
+	// without a mouse never shows the real one.
+	pointerSource func() (handle uintptr, x, y int32, ok bool)
+	pointerNote   atomic.Value // string: why the last attempt to draw it did nothing, for logs and tests
+	noBlt         atomic.Bool  // leave CAPTUREBLT out (layered windows then may not be captured)
+	switched      bool         // Use chose another monitor: the next Refresh reports a change
 }
 
-// Display returns the monitor this screen was opened for.
-func (s *Screen) Display() Display { return s.display }
+// NewScreen opens the primary monitor.
+func NewScreen() (*Screen, error) { return Open("primary") }
 
-func (s *Screen) Size() (int, int) { return s.w, s.h }
-
-// Valid reports whether the monitor still exists with the same geometry. Hosts
-// call it between frames so a topology change becomes a clean shutdown instead
-// of a silently wrong capture.
-func (s *Screen) Valid() bool {
+// Open opens a monitor chosen by SelectDisplay's selector: "primary", an index,
+// or a device name such as `\\.\DISPLAY2`.
+func Open(selector string) (*Screen, error) {
 	all, err := Displays()
 	if err != nil {
-		return false
+		return nil, err
 	}
-	for _, d := range all {
-		if d.Device == s.display.Device && d.X == s.display.X && d.Y == s.display.Y && d.W == s.display.W && d.H == s.display.H {
-			return true
-		}
+	d, err := SelectDisplay(all, selector)
+	if err != nil {
+		return nil, err
 	}
-	return false
-}
-
-// Grab copies the current monitor contents into dst (which must be Size() large).
-func (s *Screen) Grab(dst *tile.Frame) error {
+	s := &Screen{pointerSource: systemPointer}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if dst.W != s.w || dst.H != s.h {
-		return errors.New("capture: frame size mismatch")
+	if err := s.build(d); err != nil {
+		s.release()
+		return nil, err
 	}
-	r, _, err := bitBlt.Call(s.memDC, 0, 0, uintptr(s.w), uintptr(s.h),
-		s.screen, uintptr(s.display.X), uintptr(s.display.Y), srccopy|captureBlt)
-	if r == 0 {
-		return fmt.Errorf("capture: BitBlt failed: %v", err)
+	return s, nil
+}
+
+// build creates the device contexts and the bitmap for monitor d. Callers hold s.mu.
+func (s *Screen) build(d Display) error {
+	if d.W <= 0 || d.H <= 0 {
+		return fmt.Errorf("capture: monitor %s reports a %dx%d size", d.Device, d.W, d.H)
 	}
-	s.drawCursor()
-	copy(dst.Pix, unsafe.Slice((*byte)(s.pixels), len(dst.Pix)))
+	s.display, s.w, s.h = d, int(d.W), int(d.H)
+	s.screen, _, _ = getDC.Call(0)
+	if s.screen == 0 {
+		return errors.New("capture: GetDC failed")
+	}
+	s.memDC, _, _ = createDC.Call(s.screen)
+	if s.memDC == 0 {
+		return errors.New("capture: CreateCompatibleDC failed")
+	}
+	bi := bitmapInfoHeader{
+		Size: uint32(unsafe.Sizeof(bitmapInfoHeader{})), Width: int32(s.w),
+		Height: -int32(s.h), Planes: 1, Bits: 32, // negative height = top-down
+	}
+	s.bmp, _, _ = createDIB.Call(s.memDC, uintptr(unsafe.Pointer(&bi)), 0,
+		uintptr(unsafe.Pointer(&s.pixels)), 0, 0)
+	if s.bmp == 0 || s.pixels == nil {
+		return errors.New("capture: CreateDIBSection failed")
+	}
+	s.old, _, _ = selectObj.Call(s.memDC, s.bmp)
 	return nil
 }
 
-// drawCursor composites the Windows cursor after BitBlt, which does not capture
-// the system cursor. This makes the pointer visible in every remote viewer.
-func (s *Screen) drawCursor() {
-	info := cursorInfo{Size: uint32(unsafe.Sizeof(cursorInfo{}))}
-	if result, _, _ := getCursor.Call(uintptr(unsafe.Pointer(&info))); result == 0 ||
-		info.Flags&cursorShowing == 0 || info.Cursor == 0 {
-		return
-	}
-
-	hotspotX, hotspotY := uint32(0), uint32(0)
-	icon := iconInfo{}
-	if result, _, _ := getIcon.Call(info.Cursor, uintptr(unsafe.Pointer(&icon))); result != 0 {
-		hotspotX, hotspotY = icon.HotspotX, icon.HotspotY
-		if icon.Mask != 0 {
-			defer deleteObj.Call(icon.Mask)
-		}
-		if icon.Color != 0 {
-			defer deleteObj.Call(icon.Color)
-		}
-	}
-	x, y := cursor.DrawPosition(s.display.X, s.display.Y, info.Position.X, info.Position.Y, hotspotX, hotspotY)
-	drawIcon.Call(s.memDC, uintptr(x), uintptr(y), info.Cursor, 0, 0, 0, 0, diNormal)
-}
-
-func (s *Screen) Close() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// release frees what build made. Callers hold s.mu.
+func (s *Screen) release() {
 	if s.old != 0 {
 		selectObj.Call(s.memDC, s.old)
 		s.old = 0
@@ -333,13 +255,190 @@ func (s *Screen) Close() {
 	s.pixels = nil
 }
 
+// Display returns the monitor this screen is capturing, as of the last Refresh.
+func (s *Screen) Display() Display {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.display
+}
+
+// Size is the captured monitor's size in physical pixels.
+func (s *Screen) Size() (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w, s.h
+}
+
+// Refresh looks the monitor up again and rebuilds the capture surfaces if its
+// size or position changed, or just renews the screen device context if not (a
+// context can go stale across a desktop switch). It reports whether the geometry
+// changed. An error means the monitor is gone. It implements remote.Refresher.
+func (s *Screen) Refresh() (bool, error) {
+	all, err := Displays()
+	if err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var d Display
+	found := false
+	for _, c := range all {
+		if strings.EqualFold(c.Device, s.display.Device) {
+			d, found = c, true
+			break
+		}
+	}
+	if !found {
+		return false, fmt.Errorf("capture: monitor %s is gone", s.display.Device)
+	}
+	changed := d.X != s.display.X || d.Y != s.display.Y || d.W != s.display.W || d.H != s.display.H || s.switched
+	s.switched = false
+	if changed || s.screen == 0 {
+		s.release()
+		if err := s.build(d); err != nil {
+			s.release()
+			return false, err
+		}
+		return changed, nil
+	}
+	releaseDC.Call(0, s.screen)
+	s.screen, _, _ = getDC.Call(0)
+	if s.screen == 0 {
+		return false, errors.New("capture: GetDC failed")
+	}
+	s.display = d
+	return false, nil
+}
+
+// Use makes the screen capture another monitor, chosen as Open chooses one. The session
+// that streams it learns of the change at its next Refresh, as of any change of geometry.
+func (s *Screen) Use(selector string) error {
+	all, err := Displays()
+	if err != nil {
+		return err
+	}
+	d, err := SelectDisplay(all, selector)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old := s.display
+	s.release()
+	if err := s.build(d); err != nil {
+		s.release()
+		if s.build(old) != nil { // back to the old monitor, if it is still there
+			s.release()
+		}
+		return err
+	}
+	s.switched = true
+	return nil
+}
+
+// Device is the device name of the monitor being captured (\\.\DISPLAY1).
+func (s *Screen) Device() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.display.Device
+}
+
+// SetCursorVisible makes later grabs include the system pointer, which BitBlt
+// leaves out. It implements remote.CursorSetter.
+func (s *Screen) SetCursorVisible(on bool) { s.pointer.Store(on) }
+
+// SetLayered chooses whether grabs pass CAPTUREBLT, which includes layered
+// windows (tooltips, some overlays and menus). It is on by default. Turning it
+// off is an experiment for hosts whose own pointer flickers while it is captured,
+// at the cost of those windows possibly missing from the picture.
+func (s *Screen) SetLayered(on bool) { s.noBlt.Store(!on) }
+
+// Grab copies the current monitor contents into dst (which must be Size() large).
+func (s *Screen) Grab(dst *tile.Frame) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.screen == 0 || s.memDC == 0 || s.pixels == nil {
+		return errors.New("capture: no capture surface")
+	}
+	if dst.W != s.w || dst.H != s.h {
+		return errors.New("capture: frame size mismatch")
+	}
+	rop := uintptr(srccopy)
+	if !s.noBlt.Load() {
+		rop |= captureBlt
+	}
+	r, _, err := bitBlt.Call(s.memDC, 0, 0, uintptr(s.w), uintptr(s.h),
+		s.screen, uintptr(s.display.X), uintptr(s.display.Y), rop)
+	if r == 0 {
+		return fmt.Errorf("capture: BitBlt failed: %v", err)
+	}
+	if s.pointer.Load() {
+		s.drawCursor()
+	}
+	copy(dst.Pix, unsafe.Slice((*byte)(s.pixels), len(dst.Pix)))
+	return nil
+}
+
+// systemPointer asks Windows which pointer is showing and where its hotspot is, in
+// virtual-desktop pixels. ok is false if it is hidden.
+func systemPointer() (handle uintptr, x, y int32, ok bool) {
+	info := cursorInfo{Size: uint32(unsafe.Sizeof(cursorInfo{}))}
+	if r, _, _ := getCursor.Call(uintptr(unsafe.Pointer(&info))); r == 0 ||
+		info.Flags&cursorShowing == 0 || info.Cursor == 0 {
+		return 0, 0, 0, false
+	}
+	return info.Cursor, info.Position.X, info.Position.Y, true
+}
+
+// drawCursor composites the pointer after BitBlt, which does not capture it, so
+// it is visible in a viewer that has no pointer of its own.
+func (s *Screen) drawCursor() {
+	h, px, py, ok := s.pointerSource()
+	if !ok {
+		s.pointerNote.Store("the pointer is hidden")
+		return
+	}
+	var hotX, hotY uint32
+	var icon iconInfo
+	if r, _, _ := getIcon.Call(h, uintptr(unsafe.Pointer(&icon))); r != 0 {
+		hotX, hotY = icon.HotspotX, icon.HotspotY
+		// GetIconInfo hands over copies of the bitmaps that the caller must free.
+		if icon.Mask != 0 {
+			defer deleteObj.Call(icon.Mask)
+		}
+		if icon.Color != 0 {
+			defer deleteObj.Call(icon.Color)
+		}
+	}
+	x, y := cursor.DrawPosition(s.display.X, s.display.Y, px, py, hotX, hotY)
+	if r, _, err := drawIcon.Call(s.memDC, uintptr(x), uintptr(y), h, 0, 0, 0, 0, diNormal); r == 0 {
+		s.pointerNote.Store(fmt.Sprintf("DrawIconEx failed at %d,%d: %v", x, y, err))
+		return
+	}
+	s.pointerNote.Store(fmt.Sprintf("drew the pointer at %d,%d (hotspot %d,%d, pointer at %d,%d)", x, y, hotX, hotY, px, py))
+}
+
+// PointerNote says what the last attempt to draw the pointer did, or why it did
+// nothing. For logs and diagnosis only.
+func (s *Screen) PointerNote() string {
+	n, _ := s.pointerNote.Load().(string)
+	return n
+}
+
+// Close frees the capture surfaces.
+func (s *Screen) Close() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.release()
+}
+
 // VirtualScreen returns the virtual-desktop rectangle, which the injector needs
-// to convert monitor-local coordinates back to absolute ones.
+// to turn monitor-local coordinates into absolute ones.
 func VirtualScreen() (x, y, w, h int) {
 	EnableDPIAwareness()
-	rx, _, _ := getMetric.Call(smXScreen)
-	ry, _, _ := getMetric.Call(smYScreen)
-	rw, _, _ := getMetric.Call(smCXScreen)
-	rh, _, _ := getMetric.Call(smCYScreen)
-	return int(rx), int(ry), int(rw), int(rh)
+	rx, _, _ := getMetric.Call(smXVirtual)
+	ry, _, _ := getMetric.Call(smYVirtual)
+	rw, _, _ := getMetric.Call(smCXVirtual)
+	rh, _, _ := getMetric.Call(smCYVirtual)
+	return int(int32(rx)), int(int32(ry)), int(rw), int(rh)
 }
