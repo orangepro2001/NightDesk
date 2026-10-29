@@ -12,7 +12,7 @@
 - NightDesk `native/` 已移植 `orangepro2001/go-nx` 上游 `main`（`ba8b32869bc49020ca4951f0b9713632a2c671e4`，对应 go-nx 0.9.0）；保留 NightDesk 模块路径、WPF/Android 应用边界和旧 viewer 兼容。已重建并验证 `mobile.aar`、`nx-host.exe` 与 `nx-probe.exe`。
 - WPF viewer 仍使用协议 v0，sidecar 继续在 v0 会话合成屏幕内指针；Android viewer 通过 v1 请求合成指针，回退到 NightDesk v0 host 时保留旧文本/横向滚轮扩展。WPF trusted-device 解析同时兼容旧 JSON 对象与上游数组，并通过附加 `trustedDetails` 保留 endpoint/配对时间。
 - viewer 尺寸切换 Parsec VDD 未接入：NightDesk 已有独立显示拓扑/VDD 生命周期；nx-host 不注册 `OnViewSize`、不声明 `CapVirtualDisplay`，避免两个控制方争用显示器状态。
-- Go（全量/race/vet/Windows 交叉构建）、Windows 219 项断言、Android 46 项 JVM 测试、lint、5 项安全仪器测试和合成 QUIC 探针通过。此次没有发布 APK/Windows 更新包或改版本号。
+- Go（全量/race/vet/Windows 交叉构建）、Windows 219 项断言、Android 46 项 JVM 测试、lint、5 项安全仪器测试和合成 QUIC 探针通过；本机 warning-as-error 构建 0 警告/错误。提交 `2edb2d978ab7620fea422872386601d5a5a1cfa1` 已推送，GitHub Actions `verify` 的 Windows、Android build/lint 和 KVM instrumented jobs 全部成功。此次没有发布 APK/Windows 更新包或改版本号。
 - 物理 Windows 抓屏/输入、真机端到端、被控屏幕物理光标闪烁、不同 DPI/多屏仍未验收；此阶段只使用 pattern/log 合成模式，不操作生产显示状态。具体文件、hash、复建命令见源码阶段交接文档。
 
 ## 最新阶段：远控交互升级与双端发布（2026-10-28 09:32 KST）
